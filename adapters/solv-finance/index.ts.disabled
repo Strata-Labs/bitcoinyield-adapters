@@ -1,0 +1,98 @@
+/**
+ * ⚠️ DISABLED — May 2026
+ *
+ * Renamed from `index.ts` to `index.ts.disabled` so the registry-build
+ * script (`scripts/build-registry.ts`) skips it on discovery.
+ *
+ * Reason: BTC+ on BOB Network has tiny TVL (~$29.7K), the page no longer
+ * publishes an APY, and the main-app metrics aren't tracking it. The
+ * scraper was also unreliable — `app.gobob.xyz` is a React SPA where the
+ * TVL value sometimes doesn't render within the 30s scrape window.
+ *
+ * To re-enable: rename this file back to `index.ts` and run
+ * `pnpm registry:build`. The registry will rediscover it automatically.
+ *
+ * ---
+ *
+ * Solv Finance (BTC+ on BOB Network) adapter — scraper.
+ *
+ * Distinct from `solv-btc-plus` (which tracks BTC+ as deployed on BNB Chain
+ * via Solv's central API). This adapter tracks the BOB Network gateway
+ * specifically — users deposit SolvBTC and receive BTC+ via BOB's frontend.
+ *
+ * Page format as of May 2026:
+ *   - TVL is displayed as "TVL $X.XK" (note the K/M/B suffix — the previous
+ *     regex assumed plain digits and broke when the value got small enough
+ *     to render with a K abbreviation).
+ *   - APY is NO LONGER published on the page. Returning `apr: 0` is the
+ *     honest answer here; we explicitly flag `aprSource` in metadata so
+ *     anyone reading the row knows it's not a scrape failure.
+ *
+ * If Solv / BOB starts publishing an APY again, the regex below will pick
+ * it up automatically — no code change needed.
+ */
+
+import { defineAdapter, math, prices, requirePositive, scraper } from '@bitcoinyield/adapters'
+
+const SOLV_URL = 'https://app.gobob.xyz/en/earn/solvbtcplus'
+
+export default defineAdapter({
+  slug: 'solv-finance',
+  name: 'Solv Finance (BTC+ on BOB)',
+  url: SOLV_URL,
+  category: 'yield-bearing',
+  custody: 'multisig',
+
+  async fetch() {
+    const [page, btcPrice] = await Promise.all([
+      // BOB Gateway is a heavy SPA — the TVL value renders after a few
+      // async loads. Wait for ANY "$X.XK"-style dollar amount, which is
+      // both broader than the TVL header alone and tolerates the page
+      // re-flowing how it lays out the TVL label vs value.
+      scraper.scrape(SOLV_URL, {
+        waitForText: /\$[\d.,]+\s*[KMB]/i,
+        timeoutMs: 30_000,
+      }),
+      prices.getBtc(),
+    ])
+
+    // The TVL value sometimes renders as "TVL\n$29.7K" (label and value on
+    // separate lines), sometimes as "TVL $29.7K" on one line. The regex
+    // tolerates both via `\s*` (which matches newlines in JS regex).
+    const tvlMatch = page.text.match(/TVL\s*\$([\d.,]+)\s*([KMB]?)/i)
+    if (!tvlMatch || !tvlMatch[1]) {
+      throw new Error(
+        `Solv (BOB) TVL not found on page. Snippet: ${page.text.slice(0, 500)}`,
+      )
+    }
+    const tvlNumeric = parseFloat(tvlMatch[1].replace(/,/g, ''))
+    const suffix = (tvlMatch[2] ?? '').toUpperCase()
+    const multiplier =
+      suffix === 'B' ? 1e9 : suffix === 'M' ? 1e6 : suffix === 'K' ? 1e3 : 1
+    const tvlUsd = tvlNumeric * multiplier
+    requirePositive(tvlUsd, 'solv tvlUsd')
+
+    // APY is currently not displayed on the page; the protocol just doesn't
+    // publish one. Return 0 explicitly rather than throwing — the metadata
+    // distinguishes "no APY shown" from "APY was zero".
+    const aprMatch = page.matchNumber(/APY\s*([\d.]+)\s*%/i)
+    const apr = aprMatch ?? 0
+
+    return [
+      {
+        // The BOB gateway hybrid vault issues BTC+ as the receipt token
+        // (per the "Output" address in the strategy diagram on the page).
+        symbol: 'BTC+',
+        tvlBtc: math.div(tvlUsd, btcPrice),
+        tvlUsd,
+        apr,
+        metadata: {
+          aprSource: aprMatch !== null ? 'page-scraped' : 'not-published-on-page',
+          yieldMechanism: 'off-chain-strategy',
+          payoutAsset: 'BTC+',
+          gateway: 'BOB Network',
+        },
+      },
+    ]
+  },
+})
