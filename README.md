@@ -4,17 +4,6 @@ A standardized way for engineers to write Bitcoin yield product adapters that [B
 
 If your protocol pays Bitcoin yield (staking, restaking, lending, LP, yield-bearing tokens, …) and you want it on the BitcoinYield homepage, write an adapter and open a PR. Once merged, the production deploy picks it up automatically — your protocol's TVL and APR show up on the site within ~24h, hourly updated.
 
-## Why this exists
-
-Without a standardized framework, every adapter ended up reinventing the same things — and getting them subtly wrong in ways that polluted the time series:
-
-- Silent zeros from inconsistent validators (we backfilled 50+ blip rows in one day)
-- BTC price fetched from different sources across adapters (Voyager vs cached vs Lombard's API), causing tiny but persistent inconsistencies
-- HTTP calls without retries (a 5s scraper timeout produced bad data)
-- Wrong DefiLlama endpoint for one adapter caused a $600M TVL inflation that went undetected
-
-This framework is the fix. One contract, one toolbox, one pipeline. Engineers write only the protocol-specific fetch logic; everything else is handled.
-
 ## What you write
 
 A single TypeScript file (~30–60 lines) per protocol:
@@ -120,21 +109,6 @@ adapters/zest-protocol/
 ```
 
 The framework only requires `index.ts` to default-export an adapter. Everything else is your call.
-
-## Status
-
-| Component                                                          | Status         |
-| ------------------------------------------------------------------ | -------------- |
-| Adapter contract + toolbox                                         | ✅ shipped     |
-| Pipeline (normalize, boundaries, bidirectional spike-guard)        | ✅ shipped     |
-| CLI (`test`, `validate`, `list`)                                   | ✅ shipped     |
-| `chains.ethereum`, `chains.stacks`                                 | ✅ shipped     |
-| `DiscordNotifier`                                                  | ✅ shipped     |
-| Staleness monitor                                                  | ✅ shipped     |
-| All 28 production adapters ported from main app                    | ✅ shipped     |
-| Inngest microservice (`src/server.ts`)                             | ✅ shipped     |
-| Main-app endpoints (`/api/adapter-metrics`, `/api/adapter-status`) | 🚧 in progress |
-| Adapter health page on bitcoinyield.com                            | 🛣️ planned     |
 
 ## License
 
