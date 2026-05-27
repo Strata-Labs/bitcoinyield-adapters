@@ -20,115 +20,122 @@ import {
   requirePositive,
   readShareGrowth,
   BLOCKS_PER_30D,
-} from '@bitcoinyield/adapters'
+} from "@bitcoinyield/adapters";
 
-const LT = '0xaC0a340C1644321D0BBc6404946d828c1EBfAC92'
-const GAUGE = '0x30ba8b27F2128c770B90C965FF671E08b9310D21'
-const GAUGE_CONTROLLER = '0x1Be14811A3a06F6aF4fA64310a636e1Df04c1c21'
-const ASSET_ADDRESS = '0x18084fbA666a33d37592fA2633fD49a74DD93a88' // tBTC mainnet
-const ASSET_DECIMALS = 18
+const LT = "0xaC0a340C1644321D0BBc6404946d828c1EBfAC92";
+const GAUGE = "0x30ba8b27F2128c770B90C965FF671E08b9310D21";
+const GAUGE_CONTROLLER = "0x1Be14811A3a06F6aF4fA64310a636e1Df04c1c21";
+const ASSET_ADDRESS = "0x18084fbA666a33d37592fA2633fD49a74DD93a88"; // tBTC mainnet
+const ASSET_DECIMALS = 18;
 
-const EMISSIONS_WINDOW_SECONDS = 3600
-const SECONDS_PER_YEAR = 31_536_000
+const EMISSIONS_WINDOW_SECONDS = 3600;
+const SECONDS_PER_YEAR = 31_536_000;
 
 const yieldBasisLtAbi = [
   {
     inputs: [],
-    name: 'pricePerShare',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
+    name: "pricePerShare",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
   },
   {
     inputs: [],
-    name: 'updated_balances',
+    name: "updated_balances",
     outputs: [
-      { name: 'supply', type: 'uint256' },
-      { name: 'staked', type: 'uint256' },
+      { name: "supply", type: "uint256" },
+      { name: "staked", type: "uint256" },
     ],
-    stateMutability: 'view',
-    type: 'function',
+    stateMutability: "view",
+    type: "function",
   },
-] as const
+] as const;
 
 const gaugeControllerAbi = [
   {
     inputs: [
-      { name: 'gauge', type: 'address' },
-      { name: 'at_time', type: 'uint256' },
+      { name: "gauge", type: "address" },
+      { name: "at_time", type: "uint256" },
     ],
-    name: 'preview_emissions',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
+    name: "preview_emissions",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
   },
-] as const
+] as const;
 
 export default defineAdapter({
-  slug: 'yb-tbtc-token',
-  name: 'Yield Basis YB-tBTC (Staked)',
-  url: 'https://yieldbasis.com',
-  category: 'lp',
-  custody: 'multisig',
-  requires: { rpc: ['ethereum'] },
+  slug: "yb-tbtc-token",
+  name: "Yield Basis YB-tBTC (Staked)",
+  url: "https://yieldbasis.com",
+  category: "lp",
+  custody: "multisig",
+  requires: { rpc: ["ethereum"] },
 
   async fetch() {
-    const client = ethereum.getClient()
+    const client = ethereum.getClient();
 
-    const latestBlock = await client.getBlock({ blockTag: 'latest' })
-    const nowTs = latestBlock.timestamp
-    const futureTs = nowTs + BigInt(EMISSIONS_WINDOW_SECONDS)
+    const latestBlock = await client.getBlock({ blockTag: "latest" });
+    const nowTs = latestBlock.timestamp;
+    const futureTs = nowTs + BigInt(EMISSIONS_WINDOW_SECONDS);
 
-    const [balancesCall, growth, emissionsNow, emissionsFuture, ybPriceUsd, btcPriceUsd] =
-      await Promise.all([
-        ethereum.readContract<readonly [bigint, bigint]>({
-          address: LT,
-          abi: yieldBasisLtAbi,
-          functionName: 'updated_balances',
-        }),
-        readShareGrowth({
-          client,
-          address: LT,
-          abi: yieldBasisLtAbi,
-          functionName: 'pricePerShare',
-          blocksBack: BLOCKS_PER_30D.ethereum,
-          decimals: 18,
-        }),
-        ethereum.readContract<bigint>({
-          address: GAUGE_CONTROLLER,
-          abi: gaugeControllerAbi,
-          functionName: 'preview_emissions',
-          args: [GAUGE, nowTs],
-        }),
-        ethereum.readContract<bigint>({
-          address: GAUGE_CONTROLLER,
-          abi: gaugeControllerAbi,
-          functionName: 'preview_emissions',
-          args: [GAUGE, futureTs],
-        }),
-        prices.getToken('yield-basis'),
-        prices.getBtc(),
-      ])
+    const [
+      balancesCall,
+      growth,
+      emissionsNow,
+      emissionsFuture,
+      ybPriceUsd,
+      btcPriceUsd,
+    ] = await Promise.all([
+      ethereum.readContract<readonly [bigint, bigint]>({
+        address: LT,
+        abi: yieldBasisLtAbi,
+        functionName: "updated_balances",
+      }),
+      readShareGrowth({
+        client,
+        address: LT,
+        abi: yieldBasisLtAbi,
+        functionName: "pricePerShare",
+        blocksBack: BLOCKS_PER_30D.ethereum,
+        decimals: 18,
+      }),
+      ethereum.readContract<bigint>({
+        address: GAUGE_CONTROLLER,
+        abi: gaugeControllerAbi,
+        functionName: "preview_emissions",
+        args: [GAUGE, nowTs],
+      }),
+      ethereum.readContract<bigint>({
+        address: GAUGE_CONTROLLER,
+        abi: gaugeControllerAbi,
+        functionName: "preview_emissions",
+        args: [GAUGE, futureTs],
+      }),
+      prices.getToken("yield-basis"),
+      prices.getBtc(),
+    ]);
 
-    const [, stakedRaw] = balancesCall
-    const stakedShares = math.fromUnits(stakedRaw, 18)
-    requirePositive(stakedShares, 'stakedShares')
+    const [, stakedRaw] = balancesCall;
+    const stakedShares = math.fromUnits(stakedRaw, 18);
+    requirePositive(stakedShares, "stakedShares");
 
-    const tvlBtc = math.mul(stakedShares, growth.sharePriceNow)
-    requirePositive(tvlBtc, 'tvlBtc')
+    const tvlBtc = math.mul(stakedShares, growth.sharePriceNow);
+    requirePositive(tvlBtc, "tvlBtc");
 
-    const ybDelta = Number(emissionsFuture - emissionsNow) / 1e18
-    const ybPerYear = (ybDelta / EMISSIONS_WINDOW_SECONDS) * SECONDS_PER_YEAR
-    const stakedTvlUsd = tvlBtc * btcPriceUsd
-    const emissionsUsdPerYear = ybPerYear * ybPriceUsd
-    const emissionsApr = stakedTvlUsd > 0 ? (emissionsUsdPerYear / stakedTvlUsd) * 100 : 0
+    const ybDelta = Number(emissionsFuture - emissionsNow) / 1e18;
+    const ybPerYear = (ybDelta / EMISSIONS_WINDOW_SECONDS) * SECONDS_PER_YEAR;
+    const stakedTvlUsd = tvlBtc * btcPriceUsd;
+    const emissionsUsdPerYear = ybPerYear * ybPriceUsd;
+    const emissionsApr =
+      stakedTvlUsd > 0 ? (emissionsUsdPerYear / stakedTvlUsd) * 100 : 0;
 
-    const baseApr = growth.apr
-    const apr = baseApr + emissionsApr
+    const baseApr = growth.apr;
+    const apr = baseApr + emissionsApr;
 
     return [
       {
-        symbol: 'yb-tBTC-staked',
+        symbol: "yb-tBTC-staked",
         tvlBtc,
         apr,
         metadata: {
@@ -149,6 +156,6 @@ export default defineAdapter({
           emissionsWindowSeconds: EMISSIONS_WINDOW_SECONDS,
         },
       },
-    ]
+    ];
   },
-})
+});

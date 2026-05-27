@@ -6,21 +6,21 @@
  * in satoshis (8 decimals) — using math.fromUnits keeps the conversion clean.
  */
 
-import { defineAdapter, http, math, prices } from '@bitcoinyield/adapters'
+import { defineAdapter, http, math, prices } from "@bitcoinyield/adapters";
 
-const MAPLE_API = 'https://api.maple.finance/v2/graphql'
-const POOL_ID = '0x80ac24aa929eaf5013f6436cda2a7ba190f5cc0b'
-const NATIVE_POOL_ID = 'btc_yield'
+const MAPLE_API = "https://api.maple.finance/v2/graphql";
+const POOL_ID = "0x80ac24aa929eaf5013f6436cda2a7ba190f5cc0b";
+const NATIVE_POOL_ID = "btc_yield";
 
-const APY_DECIMALS = 30 // weeklyApy/monthlyApy fixed-point scale
-const USD_SCALE = 6 // tvlUsd is returned in micro-USD
-const BTC_DECIMALS = 8 // tvlNative is returned in satoshis
+const APY_DECIMALS = 30; // weeklyApy/monthlyApy fixed-point scale
+const USD_SCALE = 6; // tvlUsd is returned in micro-USD
+const BTC_DECIMALS = 8; // tvlNative is returned in satoshis
 
 const APY_QUERY = `
   query GetPoolApy($poolAddress: ID!) {
     poolV2(id: $poolAddress) { monthlyApy weeklyApy }
   }
-`
+`;
 
 const TVL_QUERY = `
   query GetNativePool($nativePoolId: String!) {
@@ -28,46 +28,57 @@ const TVL_QUERY = `
       tvlNative tvlUsd nextEligibleMaturityBtcYieldDate
     }
   }
-`
+`;
 
-interface ApyData { poolV2?: { weeklyApy?: string; monthlyApy?: string } }
+interface ApyData {
+  poolV2?: { weeklyApy?: string; monthlyApy?: string };
+}
 interface TvlData {
   nativePoolById?: {
-    tvlNative?: string
-    tvlUsd?: string
-    nextEligibleMaturityBtcYieldDate?: string | null
-  }
+    tvlNative?: string;
+    tvlUsd?: string;
+    nextEligibleMaturityBtcYieldDate?: string | null;
+  };
 }
 
 export default defineAdapter({
-  slug: 'maple-finance-bitcoinyield',
-  name: 'Maple BTC Yield',
-  url: 'https://app.maple.finance',
-  category: 'lending',
-  custody: 'multisig',
+  slug: "maple-finance-bitcoinyield",
+  name: "Maple BTC Yield",
+  url: "https://app.maple.finance",
+  category: "lending",
+  custody: "multisig",
 
   async fetch() {
     const [apyData, tvlData, btcPrice] = await Promise.all([
       http.graphql<ApyData>(MAPLE_API, APY_QUERY, { poolAddress: POOL_ID }),
-      http.graphql<TvlData>(MAPLE_API, TVL_QUERY, { nativePoolId: NATIVE_POOL_ID }),
+      http.graphql<TvlData>(MAPLE_API, TVL_QUERY, {
+        nativePoolId: NATIVE_POOL_ID,
+      }),
       prices.getBtc(),
-    ])
+    ]);
 
-    const pool = apyData.poolV2
-    if (!pool) throw new Error('Maple returned no poolV2')
+    const pool = apyData.poolV2;
+    if (!pool) throw new Error("Maple returned no poolV2");
 
-    const weeklyApy = pool.weeklyApy ? math.fromUnits(pool.weeklyApy, APY_DECIMALS) : 0
-    const monthlyApy = pool.monthlyApy ? math.fromUnits(pool.monthlyApy, APY_DECIMALS) : 0
+    const weeklyApy = pool.weeklyApy
+      ? math.fromUnits(pool.weeklyApy, APY_DECIMALS)
+      : 0;
+    const monthlyApy = pool.monthlyApy
+      ? math.fromUnits(pool.monthlyApy, APY_DECIMALS)
+      : 0;
 
-    const native = tvlData.nativePoolById ?? {}
-    const tvlUsd = native.tvlUsd ? math.fromUnits(native.tvlUsd, USD_SCALE) : 0
-    const tvlNative = native.tvlNative ? math.fromUnits(native.tvlNative, BTC_DECIMALS) : 0
+    const native = tvlData.nativePoolById ?? {};
+    const tvlUsd = native.tvlUsd ? math.fromUnits(native.tvlUsd, USD_SCALE) : 0;
+    const tvlNative = native.tvlNative
+      ? math.fromUnits(native.tvlNative, BTC_DECIMALS)
+      : 0;
 
-    const tvlBtc = tvlNative > 0 ? tvlNative : tvlUsd > 0 ? math.div(tvlUsd, btcPrice) : 0
+    const tvlBtc =
+      tvlNative > 0 ? tvlNative : tvlUsd > 0 ? math.div(tvlUsd, btcPrice) : 0;
 
     return [
       {
-        symbol: 'BTC',
+        symbol: "BTC",
         tvlBtc,
         ...(tvlUsd > 0 ? { tvlUsd } : {}),
         apr: math.toPercent(weeklyApy),
@@ -79,6 +90,6 @@ export default defineAdapter({
           nativePoolId: NATIVE_POOL_ID,
         },
       },
-    ]
+    ];
   },
-})
+});

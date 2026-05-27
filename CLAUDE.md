@@ -5,6 +5,7 @@
 Standalone microservice that runs every BitcoinYield protocol adapter on a schedule and POSTs results to the main BitcoinYield app via HTTP. It holds **no database credentials** — the main app owns the schema and persistence.
 
 Two outbound endpoints on the main app (both auth'd by `x-adapter-key`):
+
 - `POST /api/adapter-metrics` — writes a `protocolMetrics` row
 - `POST /api/adapter-status` — writes/upserts an `adapterStatus` row
 
@@ -94,6 +95,7 @@ No `Co-Authored-By` trailer, no description-style commit body. Concise subject o
 Inngest serve handler at `src/server.ts`, deployed to Vercel as a separate project from the main app. Same Inngest account, separate function set.
 
 Required env in production:
+
 - `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` — from Inngest dashboard
 - `BITCOINYIELD_API_URL` — main app base URL
 - `BITCOINYIELD_ADAPTER_KEY` — shared secret for the two endpoints
@@ -101,6 +103,7 @@ Required env in production:
 - `BITCOINYIELD_VOYAGER_API_KEY`, etc — per-adapter secrets
 
 Discord webhook (optional, for operational alerts):
+
 - `DISCORD_WEBHOOK` — single channel for every alert type. Each message
   prefixes its category (`SPIKE`, `STALE`, `REGRESSION`, `DIVERGENCE`,
   `CAPACITY`) so one channel is enough.

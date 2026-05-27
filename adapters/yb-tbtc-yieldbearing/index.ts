@@ -23,70 +23,70 @@ import {
   requirePositive,
   readShareGrowth,
   BLOCKS_PER_30D,
-} from '@bitcoinyield/adapters'
+} from "@bitcoinyield/adapters";
 
-const LT = '0xaC0a340C1644321D0BBc6404946d828c1EBfAC92'
-const ASSET_ADDRESS = '0x18084fbA666a33d37592fA2633fD49a74DD93a88' // tBTC mainnet
-const ASSET_DECIMALS = 18
+const LT = "0xaC0a340C1644321D0BBc6404946d828c1EBfAC92";
+const ASSET_ADDRESS = "0x18084fbA666a33d37592fA2633fD49a74DD93a88"; // tBTC mainnet
+const ASSET_DECIMALS = 18;
 
 const yieldBasisLtAbi = [
   {
     inputs: [],
-    name: 'pricePerShare',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
+    name: "pricePerShare",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
   },
   {
     inputs: [],
-    name: 'updated_balances',
+    name: "updated_balances",
     outputs: [
-      { name: 'supply', type: 'uint256' },
-      { name: 'staked', type: 'uint256' },
+      { name: "supply", type: "uint256" },
+      { name: "staked", type: "uint256" },
     ],
-    stateMutability: 'view',
-    type: 'function',
+    stateMutability: "view",
+    type: "function",
   },
-] as const
+] as const;
 
 export default defineAdapter({
-  slug: 'yb-tbtc-yieldbearing',
-  name: 'Yield Basis YB-tBTC (Yield Bearing)',
-  url: 'https://yieldbasis.com',
-  category: 'lp',
-  custody: 'multisig',
-  requires: { rpc: ['ethereum'] },
+  slug: "yb-tbtc-yieldbearing",
+  name: "Yield Basis YB-tBTC (Yield Bearing)",
+  url: "https://yieldbasis.com",
+  category: "lp",
+  custody: "multisig",
+  requires: { rpc: ["ethereum"] },
 
   async fetch() {
     const [balancesCall, growth] = await Promise.all([
       ethereum.readContract<readonly [bigint, bigint]>({
         address: LT,
         abi: yieldBasisLtAbi,
-        functionName: 'updated_balances',
+        functionName: "updated_balances",
       }),
       readShareGrowth({
         client: ethereum.getClient(),
         address: LT,
         abi: yieldBasisLtAbi,
-        functionName: 'pricePerShare',
+        functionName: "pricePerShare",
         blocksBack: BLOCKS_PER_30D.ethereum,
         decimals: 18,
       }),
-    ])
+    ]);
 
-    const [supplyRaw, stakedRaw] = balancesCall
+    const [supplyRaw, stakedRaw] = balancesCall;
 
-    const totalSupply = math.fromUnits(supplyRaw, 18)
-    const stakedSupply = math.fromUnits(stakedRaw, 18)
-    const yieldBearingShares = math.fromUnits(supplyRaw - stakedRaw, 18)
-    requirePositive(yieldBearingShares, 'yieldBearingShares')
+    const totalSupply = math.fromUnits(supplyRaw, 18);
+    const stakedSupply = math.fromUnits(stakedRaw, 18);
+    const yieldBearingShares = math.fromUnits(supplyRaw - stakedRaw, 18);
+    requirePositive(yieldBearingShares, "yieldBearingShares");
 
-    const tvlBtc = math.mul(yieldBearingShares, growth.sharePriceNow)
-    requirePositive(tvlBtc, 'tvlBtc')
+    const tvlBtc = math.mul(yieldBearingShares, growth.sharePriceNow);
+    requirePositive(tvlBtc, "tvlBtc");
 
     return [
       {
-        symbol: 'yb-tBTC',
+        symbol: "yb-tBTC",
         tvlBtc,
         apr: growth.apr,
         metadata: {
@@ -102,6 +102,6 @@ export default defineAdapter({
           yieldBearingShares,
         },
       },
-    ]
+    ];
   },
-})
+});
