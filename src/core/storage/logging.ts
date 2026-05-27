@@ -1,4 +1,4 @@
-import type { Storage, MetricRow, AdapterRunRecord } from '../types.js'
+import type { Storage, MetricRow, AdapterRunRecord } from "../types.js";
 
 /**
  * Storage that logs to stdout instead of writing anywhere. Used for testing
@@ -9,13 +9,13 @@ import type { Storage, MetricRow, AdapterRunRecord } from '../types.js'
  */
 export class LoggingStorage implements Storage {
   async getLatest(_slug: string): Promise<MetricRow | null> {
-    return null
+    return null;
   }
 
   async insert(slug: string, rows: MetricRow[]): Promise<void> {
     for (const row of rows) {
       // eslint-disable-next-line no-console
-      console.log(`[adapter-metrics] slug=${slug} row=${JSON.stringify(row)}`)
+      console.log(`[adapter-metrics] slug=${slug} row=${JSON.stringify(row)}`);
     }
   }
 
@@ -26,11 +26,11 @@ export class LoggingStorage implements Storage {
       `durationMs=${record.durationMs}`,
       `rowsInserted=${record.rowsInserted ?? 0}`,
       `rowsDropped=${record.rowsDropped ?? 0}`,
-    ]
+    ];
     if (record.lastError) {
-      parts.push(`lastError=${JSON.stringify(record.lastError.slice(0, 300))}`)
+      parts.push(`lastError=${JSON.stringify(record.lastError.slice(0, 300))}`);
     }
     // eslint-disable-next-line no-console
-    console.log(`[adapter-status] ${parts.join(' ')}`)
+    console.log(`[adapter-status] ${parts.join(" ")}`);
   }
 }

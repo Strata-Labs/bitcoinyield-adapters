@@ -17,7 +17,7 @@
  * the staleness monitor → Discord alert).
  */
 
-import { Stagehand } from '@browserbasehq/stagehand'
+import { Stagehand } from "@browserbasehq/stagehand";
 
 /**
  * Minimal subset of the Stagehand Page interface we use. Stagehand v3 does
@@ -26,42 +26,42 @@ import { Stagehand } from '@browserbasehq/stagehand'
  * `evaluate` for content readiness instead (see pollForText below).
  */
 interface StagehandLikeContext {
-  pages?: () => Array<StagehandLikePage>
+  pages?: () => Array<StagehandLikePage>;
 }
 export interface StagehandLikePage {
-  goto: (url: string, options?: { waitUntil?: string }) => Promise<unknown>
+  goto: (url: string, options?: { waitUntil?: string }) => Promise<unknown>;
   evaluate: <R, Arg = unknown>(
     fn: ((arg: Arg) => R | Promise<R>) | (() => R | Promise<R>),
     arg?: Arg,
-  ) => Promise<R>
+  ) => Promise<R>;
   locator: (selector: string) => {
     first: () => {
-      isVisible: () => Promise<boolean>
-      click: () => Promise<void>
-    }
-  }
+      isVisible: () => Promise<boolean>;
+      click: () => Promise<void>;
+    };
+  };
 }
 
 export interface ScrapeOptions {
   /** Wait until this regex matches document.body.innerText before scraping. */
-  waitForText?: RegExp
+  waitForText?: RegExp;
   /**
    * Max time (ms) to wait for waitForText / page load. Default: 15_000.
    * Stagehand's Browserbase sessions cost time, so don't go too long.
    */
-  timeoutMs?: number
+  timeoutMs?: number;
 }
 
 export interface ScrapedContent {
   /** Full document.body.innerText at the time of scrape. */
-  text: string
+  text: string;
   /** Convenience: extract the first capturing group from a regex against text. */
-  match(regex: RegExp): string | null
+  match(regex: RegExp): string | null;
   /** Convenience: extract a parsed number from a regex (allows `[\d,]+(?:\.\d+)?`). */
-  matchNumber(regex: RegExp): number | null
+  matchNumber(regex: RegExp): number | null;
 }
 
-const DEFAULT_TIMEOUT_MS = 15_000
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 /**
  * Poll `document.body.innerText` via page.evaluate until it matches the
@@ -73,30 +73,32 @@ async function pollForText(
   pattern: RegExp,
   timeoutMs: number,
 ): Promise<void> {
-  const POLL_INTERVAL_MS = 250
-  const startedAt = Date.now()
+  const POLL_INTERVAL_MS = 250;
+  const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     const present = await page.evaluate(
       (re: { source: string; flags: string }) =>
         new RegExp(re.source, re.flags).test(document.body.innerText),
       { source: pattern.source, flags: pattern.flags },
-    )
-    if (present) return
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
+    );
+    if (present) return;
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   }
-  throw new Error(`Timed out after ${timeoutMs}ms waiting for text matching ${pattern}`)
+  throw new Error(
+    `Timed out after ${timeoutMs}ms waiting for text matching ${pattern}`,
+  );
 }
 
 function getCredentials(): { apiKey: string; projectId: string } {
-  const apiKey = process.env.BITCOINYIELD_BROWSERBASE_KEY
-  const projectId = process.env.BITCOINYIELD_BROWSERBASE_PROJECT_ID
+  const apiKey = process.env.BITCOINYIELD_BROWSERBASE_KEY;
+  const projectId = process.env.BITCOINYIELD_BROWSERBASE_PROJECT_ID;
   if (!apiKey || !projectId) {
     throw new Error(
-      'Scraper requires BITCOINYIELD_BROWSERBASE_KEY and BITCOINYIELD_BROWSERBASE_PROJECT_ID. ' +
-        'Set them in .env.local for local dev (sign up at https://browserbase.com for a free trial).',
-    )
+      "Scraper requires BITCOINYIELD_BROWSERBASE_KEY and BITCOINYIELD_BROWSERBASE_PROJECT_ID. " +
+        "Set them in .env.local for local dev (sign up at https://browserbase.com for a free trial).",
+    );
   }
-  return { apiKey, projectId }
+  return { apiKey, projectId };
 }
 
 /**
@@ -113,69 +115,71 @@ export async function scrape(
   url: string,
   options: ScrapeOptions = {},
 ): Promise<ScrapedContent> {
-  const { apiKey, projectId } = getCredentials()
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  const isProduction = process.env.NODE_ENV === 'production'
+  const { apiKey, projectId } = getCredentials();
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const isProduction = process.env.NODE_ENV === "production";
 
   const stagehand = new Stagehand({
-    env: 'BROWSERBASE',
+    env: "BROWSERBASE",
     apiKey,
     projectId,
     disablePino: isProduction,
-  })
+  });
 
   try {
-    await stagehand.init()
+    await stagehand.init();
 
-    const context = stagehand.context as unknown as StagehandLikeContext
-    const page = context?.pages?.()?.[0]
+    const context = stagehand.context as unknown as StagehandLikeContext;
+    const page = context?.pages?.()?.[0];
     if (!page) {
-      throw new Error(`Stagehand session opened but no page available for ${url}`)
+      throw new Error(
+        `Stagehand session opened but no page available for ${url}`,
+      );
     }
 
-    await page.goto(url, { waitUntil: 'networkidle' })
+    await page.goto(url, { waitUntil: "networkidle" });
 
     if (options.waitForText) {
-      await pollForText(page, options.waitForText, timeoutMs)
+      await pollForText(page, options.waitForText, timeoutMs);
     }
 
-    const text = await page.evaluate(() => document.body.innerText)
+    const text = await page.evaluate(() => document.body.innerText);
 
     return {
       text,
       match: (regex: RegExp) => {
-        const m = text.match(regex)
-        return m && m[1] ? m[1] : null
+        const m = text.match(regex);
+        return m && m[1] ? m[1] : null;
       },
       matchNumber: (regex: RegExp) => {
-        const m = text.match(regex)
-        if (!m || !m[1]) return null
-        const cleaned = m[1].replace(/,/g, '')
-        const n = parseFloat(cleaned)
-        return Number.isFinite(n) ? n : null
+        const m = text.match(regex);
+        if (!m || !m[1]) return null;
+        const cleaned = m[1].replace(/,/g, "");
+        const n = parseFloat(cleaned);
+        return Number.isFinite(n) ? n : null;
       },
-    }
+    };
   } finally {
     await stagehand.close().catch(() => {
       // Failure to close session is best-effort; don't mask the original error.
-    })
+    });
   }
 }
 
 export interface OpenedSession {
-  page: StagehandLikePage
+  page: StagehandLikePage;
   /** Caller MUST invoke close() — typically in a try/finally. */
-  close: () => Promise<void>
-  sessionId: string | undefined
+  close: () => Promise<void>;
+  sessionId: string | undefined;
   /** Navigate to a different URL using the same session (for multi-page scrapes). */
   goto: (
     url: string,
-    options?: { waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' },
-  ) => Promise<void>
+    options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" },
+  ) => Promise<void>;
   /** Wait until document.body.innerText matches the given regex. Default 15s. */
-  waitForText: (regex: RegExp, timeoutMs?: number) => Promise<void>
+  waitForText: (regex: RegExp, timeoutMs?: number) => Promise<void>;
   /** Read document.body.innerText. */
-  getText: () => Promise<string>
+  getText: () => Promise<string>;
 }
 
 /**
@@ -183,11 +187,11 @@ export interface OpenedSession {
  * Returns null if no match or non-finite. Use with openPage() text scrapes.
  */
 export function matchNumber(text: string, regex: RegExp): number | null {
-  const m = text.match(regex)
-  if (!m || !m[1]) return null
-  const cleaned = m[1].replace(/,/g, '')
-  const n = parseFloat(cleaned)
-  return Number.isFinite(n) ? n : null
+  const m = text.match(regex);
+  if (!m || !m[1]) return null;
+  const cleaned = m[1].replace(/,/g, "");
+  const n = parseFloat(cleaned);
+  return Number.isFinite(n) ? n : null;
 }
 
 /**
@@ -208,41 +212,45 @@ export function matchNumber(text: string, regex: RegExp): number | null {
  */
 export async function openPage(
   url: string,
-  options: { waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' } = {},
+  options: { waitUntil?: "load" | "domcontentloaded" | "networkidle" } = {},
 ): Promise<OpenedSession> {
-  const { apiKey, projectId } = getCredentials()
-  const isProduction = process.env.NODE_ENV === 'production'
+  const { apiKey, projectId } = getCredentials();
+  const isProduction = process.env.NODE_ENV === "production";
 
   const stagehand = new Stagehand({
-    env: 'BROWSERBASE',
+    env: "BROWSERBASE",
     apiKey,
     projectId,
     disablePino: isProduction,
-  })
+  });
 
-  await stagehand.init()
+  await stagehand.init();
   const sessionId = (stagehand as unknown as { browserbaseSessionID?: string })
-    .browserbaseSessionID
+    .browserbaseSessionID;
 
   try {
-    const context = stagehand.context as unknown as StagehandLikeContext
-    const page = context?.pages?.()?.[0]
+    const context = stagehand.context as unknown as StagehandLikeContext;
+    const page = context?.pages?.()?.[0];
     if (!page) {
-      throw new Error(`Stagehand session opened but no page available for ${url}`)
+      throw new Error(
+        `Stagehand session opened but no page available for ${url}`,
+      );
     }
-    await page.goto(url, { waitUntil: options.waitUntil ?? 'networkidle' })
+    await page.goto(url, { waitUntil: options.waitUntil ?? "networkidle" });
 
-    const goto: OpenedSession['goto'] = async (newUrl, gotoOptions) => {
-      await page.goto(newUrl, { waitUntil: gotoOptions?.waitUntil ?? 'networkidle' })
-    }
+    const goto: OpenedSession["goto"] = async (newUrl, gotoOptions) => {
+      await page.goto(newUrl, {
+        waitUntil: gotoOptions?.waitUntil ?? "networkidle",
+      });
+    };
 
-    const waitForText: OpenedSession['waitForText'] = (
+    const waitForText: OpenedSession["waitForText"] = (
       regex,
       timeoutMs = DEFAULT_TIMEOUT_MS,
-    ) => pollForText(page, regex, timeoutMs)
+    ) => pollForText(page, regex, timeoutMs);
 
-    const getText: OpenedSession['getText'] = () =>
-      page.evaluate(() => document.body.innerText)
+    const getText: OpenedSession["getText"] = () =>
+      page.evaluate(() => document.body.innerText);
 
     return {
       page,
@@ -251,11 +259,11 @@ export async function openPage(
       waitForText,
       getText,
       close: async () => {
-        await stagehand.close().catch(() => {})
+        await stagehand.close().catch(() => {});
       },
-    }
+    };
   } catch (err) {
-    await stagehand.close().catch(() => {})
-    throw err
+    await stagehand.close().catch(() => {});
+    throw err;
   }
 }

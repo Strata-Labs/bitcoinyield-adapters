@@ -10,32 +10,32 @@
  * Requires archive RPC support at the requested depth.
  */
 
-import type { Abi, Address, PublicClient } from 'viem'
+import type { Abi, Address, PublicClient } from "viem";
 
-const SECONDS_PER_DAY = 86_400
+const SECONDS_PER_DAY = 86_400;
 
 export interface ShareGrowthOptions {
-  client: PublicClient
-  address: Address
-  abi: Abi
-  functionName: string
-  args?: readonly unknown[]
+  client: PublicClient;
+  address: Address;
+  abi: Abi;
+  functionName: string;
+  args?: readonly unknown[];
   /** ~216_000n for Ethereum (~30d), ~518_400n for Botanix. Approximate; exact elapsed days come from block timestamps. */
-  blocksBack: bigint
+  blocksBack: bigint;
   /** Divisor for the raw uint256 — typically 18 for ERC-4626 share prices. */
-  decimals: number
+  decimals: number;
 }
 
 export interface ShareGrowthResult {
-  sharePriceNow: number
+  sharePriceNow: number;
   /** `null` when the historical read failed. */
-  sharePriceThen: number | null
-  elapsedDays: number
+  sharePriceThen: number | null;
+  elapsedDays: number;
   /** Linear annualization, percent. 0 when no baseline. */
-  apr: number
+  apr: number;
   /** Compounded annualization, percent. 0 when no baseline. */
-  apy: number
-  hasBaseline: boolean
+  apy: number;
+  hasBaseline: boolean;
 }
 
 /**
@@ -46,20 +46,21 @@ export interface ShareGrowthResult {
 export async function readShareGrowth(
   opts: ShareGrowthOptions,
 ): Promise<ShareGrowthResult> {
-  const { client, address, abi, functionName, args, blocksBack, decimals } = opts
-  const divisor = 10 ** decimals
+  const { client, address, abi, functionName, args, blocksBack, decimals } =
+    opts;
+  const divisor = 10 ** decimals;
 
-  const latestBlock = await client.getBlock({ blockTag: 'latest' })
+  const latestBlock = await client.getBlock({ blockTag: "latest" });
   const rawNow = (await client.readContract({
     address,
     abi,
     functionName,
     args,
     blockNumber: latestBlock.number,
-  })) as bigint
-  const sharePriceNow = Number(rawNow) / divisor
+  })) as bigint;
+  const sharePriceNow = Number(rawNow) / divisor;
 
-  const historicalBlockNumber = latestBlock.number - blocksBack
+  const historicalBlockNumber = latestBlock.number - blocksBack;
   try {
     const [rawThen, historicalBlock] = await Promise.all([
       client.readContract({
@@ -70,30 +71,60 @@ export async function readShareGrowth(
         blockNumber: historicalBlockNumber,
       }) as Promise<bigint>,
       client.getBlock({ blockNumber: historicalBlockNumber }),
-    ])
+    ]);
 
-    const sharePriceThen = Number(rawThen) / divisor
+    const sharePriceThen = Number(rawThen) / divisor;
     if (sharePriceThen <= 0) {
-      return { sharePriceNow, sharePriceThen: null, elapsedDays: 0, apr: 0, apy: 0, hasBaseline: false }
+      return {
+        sharePriceNow,
+        sharePriceThen: null,
+        elapsedDays: 0,
+        apr: 0,
+        apy: 0,
+        hasBaseline: false,
+      };
     }
 
-    const elapsedSeconds = Number(latestBlock.timestamp - historicalBlock.timestamp)
-    const elapsedDays = elapsedSeconds / SECONDS_PER_DAY
+    const elapsedSeconds = Number(
+      latestBlock.timestamp - historicalBlock.timestamp,
+    );
+    const elapsedDays = elapsedSeconds / SECONDS_PER_DAY;
     if (elapsedDays < 0.01) {
-      return { sharePriceNow, sharePriceThen, elapsedDays, apr: 0, apy: 0, hasBaseline: false }
+      return {
+        sharePriceNow,
+        sharePriceThen,
+        elapsedDays,
+        apr: 0,
+        apy: 0,
+        hasBaseline: false,
+      };
     }
 
-    const growth = sharePriceNow / sharePriceThen
-    const apr = (growth - 1) * (365 / elapsedDays) * 100
-    const apy = (Math.pow(growth, 365 / elapsedDays) - 1) * 100
+    const growth = sharePriceNow / sharePriceThen;
+    const apr = (growth - 1) * (365 / elapsedDays) * 100;
+    const apy = (Math.pow(growth, 365 / elapsedDays) - 1) * 100;
 
-    return { sharePriceNow, sharePriceThen, elapsedDays, apr, apy, hasBaseline: true }
+    return {
+      sharePriceNow,
+      sharePriceThen,
+      elapsedDays,
+      apr,
+      apy,
+      hasBaseline: true,
+    };
   } catch {
-    return { sharePriceNow, sharePriceThen: null, elapsedDays: 0, apr: 0, apy: 0, hasBaseline: false }
+    return {
+      sharePriceNow,
+      sharePriceThen: null,
+      elapsedDays: 0,
+      apr: 0,
+      apy: 0,
+      hasBaseline: false,
+    };
   }
 }
 
 export const BLOCKS_PER_30D = {
   ethereum: 216_000n,
   botanix: 518_400n,
-} as const
+} as const;

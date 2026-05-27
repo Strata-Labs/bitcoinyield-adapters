@@ -30,31 +30,39 @@ Adapters are pure functions. Import from the shared toolbox. Never reach into `p
 
 ```ts
 // adapters/my-protocol/index.ts
-import { defineAdapter, http, math, prices, requirePositive } from '@bitcoinyield/adapters'
+import {
+  defineAdapter,
+  http,
+  math,
+  prices,
+  requirePositive,
+} from "@bitcoinyield/adapters";
 
 export default defineAdapter({
-  slug: 'my-protocol',
-  name: 'My Protocol',
-  url: 'https://myprotocol.com',
-  category: 'staking',         // staking | restaking | lending | lp | yield-bearing | cdp
-  custody: 'self',             // self | multisig | custodial | mpc
+  slug: "my-protocol",
+  name: "My Protocol",
+  url: "https://myprotocol.com",
+  category: "staking", // staking | restaking | lending | lp | yield-bearing | cdp
+  custody: "self", // self | multisig | custodial | mpc
 
   async fetch() {
-    const data = await http.get('https://api.myprotocol.com/v1/stats')
+    const data = await http.get("https://api.myprotocol.com/v1/stats");
 
-    const tvlBtc = requirePositive(data.totalBtc, 'totalBtc')
-    const apr = math.toPercent(requirePositive(data.aprDecimal, 'aprDecimal'))
-    const btcPrice = await prices.getBtc()
+    const tvlBtc = requirePositive(data.totalBtc, "totalBtc");
+    const apr = math.toPercent(requirePositive(data.aprDecimal, "aprDecimal"));
+    const btcPrice = await prices.getBtc();
 
-    return [{
-      pool: 'my-protocol-main',
-      symbol: 'BTC',
-      tvlBtc,
-      tvlUsd: math.mul(tvlBtc, btcPrice),
-      apr,
-    }]
+    return [
+      {
+        pool: "my-protocol-main",
+        symbol: "BTC",
+        tvlBtc,
+        tvlUsd: math.mul(tvlBtc, btcPrice),
+        apr,
+      },
+    ];
   },
-})
+});
 ```
 
 ### 3. Test it locally
@@ -67,6 +75,7 @@ pnpm cli validate my-protocol  # full pipeline, prints what would be written
 ### 4. Write a README
 
 `adapters/my-protocol/README.md` should include:
+
 - What the protocol does (one paragraph)
 - Data sources (TVL endpoint, APY endpoint, contract addresses)
 - Required env vars (if any) — see "Environment" section below
@@ -80,34 +89,34 @@ CI will run automatically. If green, a maintainer will review.
 
 ### Required adapter fields
 
-| Field | Why |
-|---|---|
-| `slug` | Stable, immutable identifier (must match folder name) |
-| `name` | Display name on bitcoinyield.com |
-| `url` | Protocol UI URL |
-| `fetch()` | The async function returning `AdapterResult[]` |
+| Field     | Why                                                   |
+| --------- | ----------------------------------------------------- |
+| `slug`    | Stable, immutable identifier (must match folder name) |
+| `name`    | Display name on bitcoinyield.com                      |
+| `url`     | Protocol UI URL                                       |
+| `fetch()` | The async function returning `AdapterResult[]`        |
 
 ### Recommended adapter fields
 
-| Field | Why |
-|---|---|
-| `category` | Lets the UI filter by yield product type |
-| `custody` | Primary risk dimension for Bitcoin yield |
-| `audit.firms`, `audit.latestUrl` | Trust signals shown to users |
+| Field                                                 | Why                                      |
+| ----------------------------------------------------- | ---------------------------------------- |
+| `category`                                            | Lets the UI filter by yield product type |
+| `custody`                                             | Primary risk dimension for Bitcoin yield |
+| `audit.firms`, `audit.latestUrl`                      | Trust signals shown to users             |
 | `requires.rpc` / `requires.apis` / `requires.secrets` | Lets the runner validate before invoking |
 
 ### Output (`AdapterResult`)
 
-| Field | Required | Notes |
-|---|---|---|
-| `pool` | ✓ | Unique within this adapter (e.g., `'babylon-btc-staking'`) |
-| `symbol` | ✓ | Token symbol (`BTC`, `LBTC`, `cbBTC`, `sBTC`, etc.) |
-| `tvlBtc` | ✓ | **BTC-denominated** TVL. Throw via `requirePositive` if upstream is bad. |
-| `apr` | ✓ | In percent form (4.2 = 4.2%). Use `math.toPercent(decimalRate)` if needed. |
-| `tvlUsd` | optional | Pipeline derives from `tvlBtc × btcPrice` if missing |
-| `apyBase`, `apyReward` | optional | Sum should equal `apr` |
-| `atCapacity`, `capacity` | optional | If the product has a hard cap |
-| `metadata` | optional | Arbitrary JSON; preserved verbatim in storage |
+| Field                    | Required | Notes                                                                      |
+| ------------------------ | -------- | -------------------------------------------------------------------------- |
+| `pool`                   | ✓        | Unique within this adapter (e.g., `'babylon-btc-staking'`)                 |
+| `symbol`                 | ✓        | Token symbol (`BTC`, `LBTC`, `cbBTC`, `sBTC`, etc.)                        |
+| `tvlBtc`                 | ✓        | **BTC-denominated** TVL. Throw via `requirePositive` if upstream is bad.   |
+| `apr`                    | ✓        | In percent form (4.2 = 4.2%). Use `math.toPercent(decimalRate)` if needed. |
+| `tvlUsd`                 | optional | Pipeline derives from `tvlBtc × btcPrice` if missing                       |
+| `apyBase`, `apyReward`   | optional | Sum should equal `apr`                                                     |
+| `atCapacity`, `capacity` | optional | If the product has a hard cap                                              |
+| `metadata`               | optional | Arbitrary JSON; preserved verbatim in storage                              |
 
 ### File structure
 

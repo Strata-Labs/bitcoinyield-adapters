@@ -4,7 +4,7 @@ import type {
   BoundaryAlert,
   StalenessAlert,
   RegressionAlert,
-} from '../types.js'
+} from "../types.js";
 
 export class NoopNotifier implements Notifier {
   async spike(_alert: SpikeAlert): Promise<void> {}

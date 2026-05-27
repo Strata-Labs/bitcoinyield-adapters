@@ -1,4 +1,4 @@
-import type { Storage, MetricRow, AdapterRunRecord } from '../types.js'
+import type { Storage, MetricRow, AdapterRunRecord } from "../types.js";
 
 /**
  * Discards everything. Default for CLI so adapters can never accidentally
@@ -6,7 +6,7 @@ import type { Storage, MetricRow, AdapterRunRecord } from '../types.js'
  */
 export class NoopStorage implements Storage {
   async getLatest(_slug: string): Promise<MetricRow | null> {
-    return null
+    return null;
   }
 
   async insert(_slug: string, _rows: MetricRow[]): Promise<void> {}

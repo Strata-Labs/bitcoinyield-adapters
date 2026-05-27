@@ -31,6 +31,12 @@ coverage/
 # Vercel
 .vercel/
 
+# Internal docs (not for the public repo)
+docs/
+
+# Local agent / editor config
+.claude/
+
 # Misc
 .cache/
 tmp/

@@ -6,17 +6,17 @@
  * sBTC-related protocols).
  */
 
-import { fetchCallReadOnlyFunction, cvToValue } from '@stacks/transactions'
-import { STACKS_MAINNET } from '@stacks/network'
-import { get } from '../http.js'
+import { fetchCallReadOnlyFunction, cvToValue } from "@stacks/transactions";
+import { STACKS_MAINNET } from "@stacks/network";
+import { get } from "../http.js";
 
-const HIRO_API = 'https://api.hiro.so'
+const HIRO_API = "https://api.hiro.so";
 
-let hiroOverride: string | null = null
+let hiroOverride: string | null = null;
 
 function getHiroBase(): string {
-  if (hiroOverride) return hiroOverride
-  return process.env.BITCOINYIELD_STACKS_API ?? HIRO_API
+  if (hiroOverride) return hiroOverride;
+  return process.env.BITCOINYIELD_STACKS_API ?? HIRO_API;
 }
 
 /**
@@ -34,29 +34,29 @@ function getHiroBase(): string {
  *   const btc = math.fromUnits(sats, 8)
  */
 export async function getFungibleTokenBalance(args: {
-  address: string
-  tokenId: string
+  address: string;
+  tokenId: string;
 }): Promise<number> {
-  const { address, tokenId } = args
-  const url = `${getHiroBase()}/extended/v1/address/${address}/balances`
+  const { address, tokenId } = args;
+  const url = `${getHiroBase()}/extended/v1/address/${address}/balances`;
 
   const data = await get<{
-    fungible_tokens?: Record<string, { balance: string }>
-  }>(url)
+    fungible_tokens?: Record<string, { balance: string }>;
+  }>(url);
 
-  const tokens = data.fungible_tokens
-  if (!tokens) return 0
+  const tokens = data.fungible_tokens;
+  if (!tokens) return 0;
 
   // Hiro returns the token id as either the full "addr.contract::asset" form or
   // the short "addr.contract" form depending on version. Match both.
-  const shortId = tokenId.split('::')[0]
+  const shortId = tokenId.split("::")[0];
   for (const [key, entry] of Object.entries(tokens)) {
     if (key === tokenId || key === shortId) {
-      const n = Number(entry.balance)
-      return Number.isFinite(n) ? n : 0
+      const n = Number(entry.balance);
+      return Number.isFinite(n) ? n : 0;
     }
   }
-  return 0
+  return 0;
 }
 
 /**
@@ -68,16 +68,19 @@ export async function getFungibleTokenBalance(args: {
  * @returns Decoded Clarity value (use type-narrowing helpers to extract scalars)
  */
 export async function callReadOnly(input: {
-  contract: string
-  functionName: string
+  contract: string;
+  functionName: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  args?: any[]
+  args?: any[];
   /** The address that "sends" the call. Defaults to the contract's deployer. */
-  senderAddress?: string
+  senderAddress?: string;
 }): Promise<unknown> {
-  const [contractAddress, contractName] = input.contract.split('.') as [string, string]
+  const [contractAddress, contractName] = input.contract.split(".") as [
+    string,
+    string,
+  ];
   if (!contractAddress || !contractName) {
-    throw new Error(`Invalid contract identifier: ${input.contract}`)
+    throw new Error(`Invalid contract identifier: ${input.contract}`);
   }
 
   const result = await fetchCallReadOnlyFunction({
@@ -87,14 +90,14 @@ export async function callReadOnly(input: {
     network: STACKS_MAINNET,
     functionArgs: input.args ?? [],
     senderAddress: input.senderAddress ?? contractAddress,
-  })
+  });
 
-  return cvToValue(result)
+  return cvToValue(result);
 }
 
 /**
  * Override the Hiro base URL (mainly for tests).
  */
 export function _setHiroBase(url: string | null): void {
-  hiroOverride = url
+  hiroOverride = url;
 }

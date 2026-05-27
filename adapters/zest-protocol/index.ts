@@ -7,16 +7,16 @@
  *        (sBTC valued 1:1 with BTC).
  */
 
-import { defineAdapter, math } from '@bitcoinyield/adapters'
-import { getTotalSbtcBtc } from './vaults.js'
-import { getStackingApr, getSupplyApy } from './rates.js'
+import { defineAdapter, math } from "@bitcoinyield/adapters";
+import { getTotalSbtcBtc } from "./vaults.js";
+import { getStackingApr, getSupplyApy } from "./rates.js";
 
 export default defineAdapter({
-  slug: 'zest-protocol',
-  name: 'Zest Protocol',
-  url: 'https://zestprotocol.com',
-  category: 'lending',
-  custody: 'multisig',
+  slug: "zest-protocol",
+  name: "Zest Protocol",
+  url: "https://zestprotocol.com",
+  category: "lending",
+  custody: "multisig",
   requires: { stacks: true },
 
   async fetch() {
@@ -24,15 +24,15 @@ export default defineAdapter({
       getTotalSbtcBtc(),
       getSupplyApy(),
       getStackingApr(),
-    ])
+    ]);
 
     return [
       {
-        symbol: 'sBTC',
+        symbol: "sBTC",
         tvlBtc,
         apr: math.add(supplyApy, stackingApr),
         metadata: { supplyApy, stackingApr },
       },
-    ]
+    ];
   },
-})
+});

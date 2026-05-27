@@ -39,37 +39,37 @@ import {
   requirePositive,
   readShareGrowth,
   BLOCKS_PER_30D,
-} from '@bitcoinyield/adapters'
+} from "@bitcoinyield/adapters";
 
-const VAULT = '0x443df5eEE3196e9b2Dd77CaBd3eA76C3dee8f9b2'
-const ASSET_ADDRESS = '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599' // WBTC mainnet
-const ASSET_DECIMALS = 8 // WBTC has 8 decimals; vault token is 18-decimal.
-const CHAIN_ID = 1
+const VAULT = "0x443df5eEE3196e9b2Dd77CaBd3eA76C3dee8f9b2";
+const ASSET_ADDRESS = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"; // WBTC mainnet
+const ASSET_DECIMALS = 8; // WBTC has 8 decimals; vault token is 18-decimal.
+const CHAIN_ID = 1;
 
-const ONE_SHARE_18_DECIMALS = 10n ** 18n
+const ONE_SHARE_18_DECIMALS = 10n ** 18n;
 
-const MORPHO_API = 'https://api.morpho.org/graphql'
+const MORPHO_API = "https://api.morpho.org/graphql";
 const MORPHO_QUERY = `
   query GetVaultData($address: String!, $chainId: Int!) {
     vaultByAddress(address: $address, chainId: $chainId) {
       state { apy netApy }
     }
   }
-`
+`;
 
 interface MorphoData {
   vaultByAddress?: {
-    state?: { apy?: number; netApy?: number }
-  }
+    state?: { apy?: number; netApy?: number };
+  };
 }
 
 export default defineAdapter({
-  slug: 'morpho-gauntlet',
-  name: 'Morpho Gauntlet WBTC Core',
-  url: 'https://app.morpho.org',
-  category: 'lending',
-  custody: 'self',
-  requires: { rpc: ['ethereum'] },
+  slug: "morpho-gauntlet",
+  name: "Morpho Gauntlet WBTC Core",
+  url: "https://app.morpho.org",
+  category: "lending",
+  custody: "self",
+  requires: { rpc: ["ethereum"] },
 
   async fetch() {
     // Three parallel concerns:
@@ -82,30 +82,30 @@ export default defineAdapter({
         {
           address: VAULT,
           abi: ethereum.erc4626VaultAbi,
-          functionName: 'totalAssets',
+          functionName: "totalAssets",
         },
         {
           address: VAULT,
           abi: ethereum.erc4626VaultAbi,
-          functionName: 'decimals',
+          functionName: "decimals",
         },
         {
           address: VAULT,
           abi: ethereum.erc4626VaultAbi,
-          functionName: 'asset',
+          functionName: "asset",
         },
         {
           address: VAULT,
           abi: ethereum.erc4626VaultAbi,
-          functionName: 'maxDeposit',
-          args: ['0x0000000000000000000000000000000000000000'],
+          functionName: "maxDeposit",
+          args: ["0x0000000000000000000000000000000000000000"],
         },
       ]),
       readShareGrowth({
         client: ethereum.getClient(),
         address: VAULT,
         abi: ethereum.erc4626VaultAbi,
-        functionName: 'convertToAssets',
+        functionName: "convertToAssets",
         args: [ONE_SHARE_18_DECIMALS],
         blocksBack: BLOCKS_PER_30D.ethereum,
         decimals: ASSET_DECIMALS,
@@ -114,29 +114,35 @@ export default defineAdapter({
         address: VAULT,
         chainId: CHAIN_ID,
       }),
-    ])
+    ]);
 
-    const [totalAssetsCall, vaultDecimalsCall, assetCall, maxDepositCall] = calls
+    const [totalAssetsCall, vaultDecimalsCall, assetCall, maxDepositCall] =
+      calls;
 
     if (
-      totalAssetsCall?.status !== 'success' ||
-      vaultDecimalsCall?.status !== 'success'
+      totalAssetsCall?.status !== "success" ||
+      vaultDecimalsCall?.status !== "success"
     ) {
       throw new Error(
         `Morpho Gauntlet vault multicall failed: ` +
           `totalAssets=${totalAssetsCall?.status} decimals=${vaultDecimalsCall?.status}`,
-      )
+      );
     }
 
     // TVL math uses ASSET decimals (WBTC = 8), NOT vault decimals (18).
     // `totalAssets()` returns the underlying's raw units.
-    const tvlBtc = math.fromUnits(totalAssetsCall.result as bigint, ASSET_DECIMALS)
-    requirePositive(tvlBtc, 'tvlBtc')
+    const tvlBtc = math.fromUnits(
+      totalAssetsCall.result as bigint,
+      ASSET_DECIMALS,
+    );
+    requirePositive(tvlBtc, "tvlBtc");
 
     // Assert the underlying matches what we hardcoded. Same defensive
     // pattern as Acre / Botanix.
     const assetAddress =
-      assetCall?.status === 'success' ? (assetCall.result as string) : undefined
+      assetCall?.status === "success"
+        ? (assetCall.result as string)
+        : undefined;
     if (
       assetAddress &&
       assetAddress.toLowerCase() !== ASSET_ADDRESS.toLowerCase()
@@ -144,7 +150,7 @@ export default defineAdapter({
       throw new Error(
         `Morpho Gauntlet vault asset() returned ${assetAddress}, expected ${ASSET_ADDRESS}. ` +
           `Update ASSET_ADDRESS + ASSET_DECIMALS if the underlying changed.`,
-      )
+      );
     }
 
     // MetaMorpho's `maxDeposit` returns a value much larger than realistic
@@ -152,29 +158,29 @@ export default defineAdapter({
     // above 1M BTC as effectively uncapped (more than the total wBTC supply
     // on Ethereum).
     const maxDepositRaw =
-      maxDepositCall?.status === 'success'
+      maxDepositCall?.status === "success"
         ? (maxDepositCall.result as bigint)
-        : undefined
+        : undefined;
     const maxDepositAsNumber =
       maxDepositRaw !== undefined
         ? math.fromUnits(maxDepositRaw, ASSET_DECIMALS)
-        : undefined
+        : undefined;
     const maxDepositBtc =
       maxDepositAsNumber !== undefined && maxDepositAsNumber < 1_000_000
         ? maxDepositAsNumber
-        : null // null = effectively uncapped
+        : null; // null = effectively uncapped
 
     // Headline APR from Morpho's API (matches their UI exactly).
-    const apiNetApy = morphoData.vaultByAddress?.state?.netApy
-    const apiGrossApy = morphoData.vaultByAddress?.state?.apy
+    const apiNetApy = morphoData.vaultByAddress?.state?.netApy;
+    const apiGrossApy = morphoData.vaultByAddress?.state?.apy;
     if (apiNetApy === undefined && apiGrossApy === undefined) {
-      throw new Error('Morpho API returned no APY data for vault')
+      throw new Error("Morpho API returned no APY data for vault");
     }
-    const apr = math.toPercent(apiNetApy ?? apiGrossApy ?? 0)
+    const apr = math.toPercent(apiNetApy ?? apiGrossApy ?? 0);
 
     return [
       {
-        symbol: 'WBTC',
+        symbol: "WBTC",
         tvlBtc,
         apr,
         metadata: {
@@ -191,14 +197,16 @@ export default defineAdapter({
           apy30dRealizedCompounded: growth.apy,
           windowDays: growth.elapsedDays,
           // API-reported numbers for transparency.
-          grossApy: apiGrossApy !== undefined ? math.toPercent(apiGrossApy) : undefined,
-          netApy: apiNetApy !== undefined ? math.toPercent(apiNetApy) : undefined,
+          grossApy:
+            apiGrossApy !== undefined ? math.toPercent(apiGrossApy) : undefined,
+          netApy:
+            apiNetApy !== undefined ? math.toPercent(apiNetApy) : undefined,
           maxDepositBtc, // null = effectively uncapped (> 1M BTC)
-          curator: 'Gauntlet',
-          yieldMechanism: 'lending-vault',
-          aprSource: 'morpho-api-net-apy',
+          curator: "Gauntlet",
+          yieldMechanism: "lending-vault",
+          aprSource: "morpho-api-net-apy",
         },
       },
-    ]
+    ];
   },
-})
+});
