@@ -19,14 +19,13 @@ export default defineAdapter({
   async fetch() {
     const session = await scraper.openPage(MERLIN_URL);
     try {
-      // Click the "Live" tab if visible (page may default to another tab)
       try {
         const live = session.page
           .locator("//*[contains(text(), 'Live')]")
           .first();
         if (await live.isVisible()) await live.click();
-      } catch {
-        // No Live tab — read whatever's shown
+      } catch (err) {
+        console.warn(`[merlin-btc] Live tab click skipped: ${err}`);
       }
 
       await session.waitForText(/All Users[''"]?\s*Stake[\s\n]*[\d.]+\s*BTC/i);
