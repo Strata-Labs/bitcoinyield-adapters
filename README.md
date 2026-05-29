@@ -1,8 +1,14 @@
-# @bitcoinyield/adapters
+# BitcoinYield adapters
 
-A standardized way for engineers to write Bitcoin yield product adapters that [BitcoinYield.com](https://bitcoinyield.com) tracks in production.
+A standardized way for engineers to write Bitcoin yield product adapters for BitcoinYield.
 
-If your protocol pays Bitcoin yield (staking, restaking, lending, LP, yield-bearing tokens, …) and you want it on the BitcoinYield homepage, write an adapter and open a PR. Once merged, the production deploy picks it up automatically — your protocol's TVL and APR show up on the site within ~24h, hourly updated.
+If your protocol pays Bitcoin yield through staking, restaking, lending, LP strategies, yield-bearing tokens, or similar products, you can write an adapter and open a PR.
+
+Public listing is not automatic after merge. We aim to merge valid adapters quickly so BitcoinYield can begin tracking the product in our internal database and build historical TVL and APR/APY data.
+
+After our review is complete and the protocol report is researched and published, the product will appear on BitcoinYield.com with TVL and APR/APY data powered by the adapter and refreshed hourly.
+
+To get in direct contact with the BitcoinYield listing team, reach out to Jacob at BitcoinYield.com or on Telegram at jake_blockchain.
 
 ## What you write
 
