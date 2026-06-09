@@ -19,7 +19,6 @@ import merlinBtc from '../adapters/merlin-btc/index.js'
 import mezoEarn from '../adapters/mezo-earn/index.js'
 import morphoGauntlet from '../adapters/morpho-gauntlet/index.js'
 import solvBtcPlus from '../adapters/solv-btc-plus/index.js'
-import stacks from '../adapters/stacks/index.js'
 import stacksDualStacking from '../adapters/stacks-dual-stacking/index.js'
 import stacksDualStackingBoosted from '../adapters/stacks-dual-stacking-boosted/index.js'
 import starknet from '../adapters/starknet/index.js'
@@ -49,7 +48,6 @@ export const adapters: Record<string, Adapter> = {
   "mezo-earn": mezoEarn,
   "morpho-gauntlet": morphoGauntlet,
   "solv-btc-plus": solvBtcPlus,
-  stacks,
   "stacks-dual-stacking": stacksDualStacking,
   "stacks-dual-stacking-boosted": stacksDualStackingBoosted,
   starknet,
