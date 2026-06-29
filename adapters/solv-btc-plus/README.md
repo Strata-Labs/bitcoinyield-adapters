@@ -21,14 +21,16 @@ For each supported chain, the adapter reads:
 
 ## Rate calculation
 
-`apr` is the trailing seven-day NAV APY:
+`apr` is the trailing 30-day NAV APY:
 
 ```text
-((current_nav / nav_7d_ago) ^ (365 / elapsed_days) - 1) * 100
+((current_nav / nav_30d_ago) ^ (365 / elapsed_days) - 1) * 100
 ```
 
 The public adapter schema calls the field `apr`, so this adapter stores the
-NAV-derived APY there and includes `metadata.rateKind = "nav-apy"`.
+NAV-derived APY there and includes `metadata.rateKind = "nav-apy"`. The
+trailing seven-day NAV APY is also retained in metadata for monitoring shorter
+term changes.
 
 ## TVL calculation
 

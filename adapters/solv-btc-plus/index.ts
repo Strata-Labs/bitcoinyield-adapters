@@ -28,8 +28,10 @@ import {
 
 const SECONDS_PER_DAY = 86_400;
 const SECONDS_PER_YEAR = 365 * SECONDS_PER_DAY;
-const WINDOW_DAYS = 7;
-const WINDOW_SECONDS = WINDOW_DAYS * SECONDS_PER_DAY;
+const HEADLINE_WINDOW_DAYS = 30;
+const COMPARISON_WINDOW_DAYS = 7;
+const HEADLINE_WINDOW_SECONDS = HEADLINE_WINDOW_DAYS * SECONDS_PER_DAY;
+const COMPARISON_WINDOW_SECONDS = COMPARISON_WINDOW_DAYS * SECONDS_PER_DAY;
 const FRESH_NAV_MAX_AGE_SECONDS = 3 * SECONDS_PER_DAY;
 const PRIMARY_READ_TIMEOUT_MS = 30_000;
 const OPTIONAL_READ_TIMEOUT_MS = 12_000;
@@ -79,10 +81,14 @@ interface DeploymentSnapshot {
   nav: number;
   navTime: number;
   navTimeIso: string;
-  previousNav: number;
-  previousNavTime: number;
-  previousNavTimeIso: string;
+  previousNav7d: number;
+  previousNav7dTime: number;
+  previousNav7dTimeIso: string;
+  previousNav30d: number;
+  previousNav30dTime: number;
+  previousNav30dTimeIso: string;
   apy7d: number;
+  apy30d: number;
   isFresh: boolean;
   primary: boolean;
 }
@@ -90,6 +96,7 @@ interface DeploymentSnapshot {
 interface SnapshotInput {
   tvlBtc: number;
   apy7d: number;
+  apy30d: number;
   navTime: number;
   isFresh: boolean;
 }
@@ -97,6 +104,7 @@ interface SnapshotInput {
 interface SnapshotAggregate {
   tvlBtc: number;
   apy7d: number;
+  apy30d: number;
   freshTvlBtc: number;
 }
 
@@ -300,16 +308,22 @@ export function aggregateSnapshots(
     ...freshSnapshots.map((snapshot) => snapshot.tvlBtc),
   );
 
-  const weightedApyNumerator = math.add(
+  const weightedApy7dNumerator = math.add(
     ...freshSnapshots.map((snapshot) =>
       math.mul(snapshot.tvlBtc, snapshot.apy7d),
+    ),
+  );
+  const weightedApy30dNumerator = math.add(
+    ...freshSnapshots.map((snapshot) =>
+      math.mul(snapshot.tvlBtc, snapshot.apy30d),
     ),
   );
 
   return {
     tvlBtc,
     freshTvlBtc,
-    apy7d: math.div(weightedApyNumerator, freshTvlBtc),
+    apy7d: math.div(weightedApy7dNumerator, freshTvlBtc),
+    apy30d: math.div(weightedApy30dNumerator, freshTvlBtc),
   };
 }
 
@@ -334,7 +348,8 @@ export default defineAdapter({
 
   async fetch() {
     const now = Math.floor(Date.now() / 1000);
-    const previous = now - WINDOW_SECONDS;
+    const previous7d = now - COMPARISON_WINDOW_SECONDS;
+    const previous30d = now - HEADLINE_WINDOW_SECONDS;
 
     const reads = await Promise.allSettled(
       DEPLOYMENTS.map((deployment) => {
@@ -343,7 +358,7 @@ export default defineAdapter({
           : OPTIONAL_READ_TIMEOUT_MS;
 
         return withTimeout(
-          fetchDeploymentSnapshot(deployment, now, previous),
+          fetchDeploymentSnapshot(deployment, now, previous7d, previous30d),
           timeoutMs,
           `${deployment.key} BTC+ read timed out after ${timeoutMs}ms`,
         );
@@ -389,17 +404,22 @@ export default defineAdapter({
     const aggregate = aggregateSnapshots(snapshots);
     requirePositive(aggregate.tvlBtc, "tvlBtc");
     requirePositive(aggregate.freshTvlBtc, "freshTvlBtc");
+    const apy30d = requireNonNegative(aggregate.apy30d, "apy30d");
     const apy7d = requireNonNegative(aggregate.apy7d, "apy7d");
 
     return [
       {
         symbol: "BTC+",
         tvlBtc: aggregate.tvlBtc,
-        apr: apy7d,
+        apr: apy30d,
         metadata: {
           source: "onchain-solv-nav-oracle",
           rateKind: "nav-apy",
-          windowDays: WINDOW_DAYS,
+          windowDays: HEADLINE_WINDOW_DAYS,
+          headlineWindowDays: HEADLINE_WINDOW_DAYS,
+          comparisonWindowDays: COMPARISON_WINDOW_DAYS,
+          apy7d,
+          apy30d,
           freshNavMaxAgeDays: FRESH_NAV_MAX_AGE_SECONDS / SECONDS_PER_DAY,
           freshTvlBtc: aggregate.freshTvlBtc,
           deployments: snapshots.map(toMetadataSnapshot),
@@ -413,7 +433,8 @@ export default defineAdapter({
 async function fetchDeploymentSnapshot(
   deployment: BtcPlusDeployment,
   now: number,
-  previous: number,
+  previous7d: number,
+  previous30d: number,
 ): Promise<DeploymentSnapshot> {
   const client = getClient(deployment);
 
@@ -446,34 +467,51 @@ async function fetchDeploymentSnapshot(
   const sftOracle = normalizeSftOracle(sftOracleValue);
   assertConfiguredOracle(deployment, sftOracle);
 
-  const [currentNavValue, previousNavValue] = await Promise.all([
-    client.readContract({
-      address: sftOracle.oracle,
-      abi: sftNavOracleAbi,
-      functionName: "getSubscribeNav",
-      args: [sftOracle.poolId, BigInt(now)],
-    }),
-    client.readContract({
-      address: sftOracle.oracle,
-      abi: sftNavOracleAbi,
-      functionName: "getSubscribeNav",
-      args: [sftOracle.poolId, BigInt(previous)],
-    }),
-  ]);
+  const [currentNavValue, previousNav7dValue, previousNav30dValue] =
+    await Promise.all([
+      client.readContract({
+        address: sftOracle.oracle,
+        abi: sftNavOracleAbi,
+        functionName: "getSubscribeNav",
+        args: [sftOracle.poolId, BigInt(now)],
+      }),
+      client.readContract({
+        address: sftOracle.oracle,
+        abi: sftNavOracleAbi,
+        functionName: "getSubscribeNav",
+        args: [sftOracle.poolId, BigInt(previous7d)],
+      }),
+      client.readContract({
+        address: sftOracle.oracle,
+        abi: sftNavOracleAbi,
+        functionName: "getSubscribeNav",
+        args: [sftOracle.poolId, BigInt(previous30d)],
+      }),
+    ]);
 
   const current = normalizeNavPoint(currentNavValue);
-  const prior = normalizeNavPoint(previousNavValue);
-  const elapsedSeconds = current.navTime - prior.navTime;
-  const isFresh =
-    elapsedSeconds > 0 && now - current.navTime <= FRESH_NAV_MAX_AGE_SECONDS;
+  const prior7d = normalizeNavPoint(previousNav7dValue);
+  const prior30d = normalizeNavPoint(previousNav30dValue);
+  const elapsed7dSeconds = current.navTime - prior7d.navTime;
+  const elapsed30dSeconds = current.navTime - prior30d.navTime;
+  const isFresh = now - current.navTime <= FRESH_NAV_MAX_AGE_SECONDS;
 
-  const apy7d = isFresh
-    ? calculateNavApy({
-        currentNavRaw: current.navRaw,
-        previousNavRaw: prior.navRaw,
-        elapsedSeconds,
-      })
-    : 0;
+  const apy7d =
+    isFresh && elapsed7dSeconds > 0
+      ? calculateNavApy({
+          currentNavRaw: current.navRaw,
+          previousNavRaw: prior7d.navRaw,
+          elapsedSeconds: elapsed7dSeconds,
+        })
+      : 0;
+  const apy30d =
+    isFresh && elapsed30dSeconds > 0
+      ? calculateNavApy({
+          currentNavRaw: current.navRaw,
+          previousNavRaw: prior30d.navRaw,
+          elapsedSeconds: elapsed30dSeconds,
+        })
+      : 0;
 
   const tvlBtc = calculateUnderlyingBtc({
     totalSupplyRaw,
@@ -497,10 +535,14 @@ async function fetchDeploymentSnapshot(
     nav: math.fromUnits(current.navRaw, navDecimals),
     navTime: current.navTime,
     navTimeIso: toIso(current.navTime),
-    previousNav: math.fromUnits(prior.navRaw, navDecimals),
-    previousNavTime: prior.navTime,
-    previousNavTimeIso: toIso(prior.navTime),
+    previousNav7d: math.fromUnits(prior7d.navRaw, navDecimals),
+    previousNav7dTime: prior7d.navTime,
+    previousNav7dTimeIso: toIso(prior7d.navTime),
+    previousNav30d: math.fromUnits(prior30d.navRaw, navDecimals),
+    previousNav30dTime: prior30d.navTime,
+    previousNav30dTimeIso: toIso(prior30d.navTime),
     apy7d,
+    apy30d,
     isFresh,
     primary: deployment.primary,
   };
@@ -613,10 +655,14 @@ function toMetadataSnapshot(
     nav: snapshot.nav,
     navTime: snapshot.navTime,
     navTimeIso: snapshot.navTimeIso,
-    previousNav: snapshot.previousNav,
-    previousNavTime: snapshot.previousNavTime,
-    previousNavTimeIso: snapshot.previousNavTimeIso,
+    previousNav7d: snapshot.previousNav7d,
+    previousNav7dTime: snapshot.previousNav7dTime,
+    previousNav7dTimeIso: snapshot.previousNav7dTimeIso,
+    previousNav30d: snapshot.previousNav30d,
+    previousNav30dTime: snapshot.previousNav30dTime,
+    previousNav30dTimeIso: snapshot.previousNav30dTimeIso,
     apy7d: snapshot.apy7d,
+    apy30d: snapshot.apy30d,
     isFresh: snapshot.isFresh,
   };
 }
