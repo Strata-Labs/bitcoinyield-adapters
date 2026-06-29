@@ -11,6 +11,7 @@ import babylon from '../adapters/babylon/index.js'
 import botanix from '../adapters/botanix/index.js'
 import coinbaseBtcYieldFund from '../adapters/coinbase-btc-yield-fund/index.js'
 import hermeticaHbtc from '../adapters/hermetica-hbtc/index.js'
+import krakenAdvancedStrategiesBtc from '../adapters/kraken-advanced-strategies-btc/index.js'
 import lightningNetwork from '../adapters/lightning-network/index.js'
 import lombardEarn from '../adapters/lombard-earn/index.js'
 import lombardFinance from '../adapters/lombard-finance/index.js'
@@ -41,6 +42,7 @@ export const adapters: Record<string, Adapter> = {
   botanix,
   "coinbase-btc-yield-fund": coinbaseBtcYieldFund,
   "hermetica-hbtc": hermeticaHbtc,
+  "kraken-advanced-strategies-btc": krakenAdvancedStrategiesBtc,
   "lightning-network": lightningNetwork,
   "lombard-earn": lombardEarn,
   "lombard-finance": lombardFinance,
