@@ -4,10 +4,6 @@
  * Replaces the Browserbase scraper with direct calls on Yield Basis's LT
  * ("Leveraged Token") contract.
  *
- * Per-market addresses (from Yield Basis docs):
- *   LT (yb-cbBTC): 0xAC0cfa7742069a8af0c63e14FFD0fe6b3e1Bf8D2
- *   Underlying   : 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf (cbBTC, 8 decimals)
- *
  * APR comes from a 30-day on-chain window via `readShareGrowth` — accurate
  * from day 1 with no warmup cycle. See `adapters/yb-wbtc-yieldbearing` for
  * full commentary on the pattern.
@@ -25,7 +21,7 @@ import {
   BLOCKS_PER_30D,
 } from "@bitcoinyield/adapters";
 
-const LT = "0xAC0cfa7742069a8af0c63e14FFD0fe6b3e1Bf8D2";
+const LT = "0x722FC3640BA007C3E9867CCdB0dCa59F2e2F29F9";
 const ASSET_ADDRESS = "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf"; // cbBTC mainnet
 const ASSET_DECIMALS = 8;
 
@@ -83,6 +79,13 @@ export default defineAdapter({
 
     const tvlBtc = math.mul(yieldBearingShares, growth.sharePriceNow);
     requirePositive(tvlBtc, "tvlBtc");
+
+    if (!growth.hasBaseline) {
+      throw new Error(
+        "yb-cbbtc-yieldbearing: 30d share-price baseline unavailable " +
+          "(archive read failed) — refusing to report apr=0",
+      );
+    }
 
     return [
       {

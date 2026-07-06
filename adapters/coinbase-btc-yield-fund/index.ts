@@ -23,12 +23,13 @@ export default defineAdapter({
   custody: "custodial",
 
   async fetch() {
-    const btcPrice = await prices.getBtc();
     // Coinbase doesn't disclose TVL. Pin to the framework's lower-bound so
-    // the row survives the boundary check; metadata.tvlDisclosed = false flags it.
+    // the row survives the boundary check; metadata.tvlDisclosed = false flags
+    // it. Only fetch the BTC price if a reported figure ever gets filled in —
+    // a dead CoinGecko call is a run-failure risk for nothing.
     const tvlBtc =
       REPORTED_TVL_USD > 0
-        ? math.div(REPORTED_TVL_USD, btcPrice)
+        ? math.div(REPORTED_TVL_USD, await prices.getBtc())
         : BOUNDARIES.tvlBtc.lb;
 
     return [

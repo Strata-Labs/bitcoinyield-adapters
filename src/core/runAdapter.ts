@@ -86,12 +86,21 @@ export async function runAdapter(
     const message =
       err instanceof Error ? (err.stack ?? err.message) : String(err);
     if (!options.dryRun) {
-      await storage.recordRun(adapter.slug, {
-        status: "error",
-        finishedAt: new Date(),
-        durationMs: Date.now() - startedAt.getTime(),
-        lastError: message.slice(0, 4000),
-      });
+      try {
+        await storage.recordRun(adapter.slug, {
+          status: "error",
+          finishedAt: new Date(),
+          durationMs: Date.now() - startedAt.getTime(),
+          lastError: message.slice(0, 4000),
+        });
+      } catch (recordErr) {
+        // A status-write failure must not mask the root-cause error below.
+        // eslint-disable-next-line no-console
+        console.error(
+          `[runAdapter] recordRun(${adapter.slug}) failed while reporting an error: ` +
+            `${recordErr instanceof Error ? recordErr.message : String(recordErr)}`,
+        );
+      }
     }
     throw err;
   }

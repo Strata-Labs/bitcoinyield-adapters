@@ -10,7 +10,7 @@ import {
   defineAdapter,
   http,
   parseNumber,
-  requireNumber,
+  requirePositive,
 } from "@bitcoinyield/adapters";
 
 const ENDPOINT =
@@ -41,11 +41,11 @@ export default defineAdapter({
       );
     }
 
-    const apr = requireNumber(
+    const apr = requirePositive(
       data.next_cycle_max_defi_apr,
       "next_cycle_max_defi_apr",
     );
-    const tvlBtc = parseNumber(data.boosted_sbtc, 0);
+    const tvlBtc = requirePositive(data.boosted_sbtc, "boosted_sbtc");
     const tvlUsd = parseNumber(data.boosted_tvl, 0);
 
     return [

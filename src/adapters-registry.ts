@@ -11,15 +11,14 @@ import babylon from '../adapters/babylon/index.js'
 import botanix from '../adapters/botanix/index.js'
 import coinbaseBtcYieldFund from '../adapters/coinbase-btc-yield-fund/index.js'
 import hermeticaHbtc from '../adapters/hermetica-hbtc/index.js'
+import krakenBitcoinEarn from '../adapters/kraken-bitcoin-earn/index.js'
 import lightningNetwork from '../adapters/lightning-network/index.js'
 import lombardEarn from '../adapters/lombard-earn/index.js'
 import lombardFinance from '../adapters/lombard-finance/index.js'
-import mapleFinanceBitcoinyield from '../adapters/maple-finance-bitcoinyield/index.js'
 import merlinBtc from '../adapters/merlin-btc/index.js'
 import mezoEarn from '../adapters/mezo-earn/index.js'
 import morphoGauntlet from '../adapters/morpho-gauntlet/index.js'
 import solvBtcPlus from '../adapters/solv-btc-plus/index.js'
-import stacks from '../adapters/stacks/index.js'
 import stacksDualStacking from '../adapters/stacks-dual-stacking/index.js'
 import stacksDualStackingBoosted from '../adapters/stacks-dual-stacking-boosted/index.js'
 import starknet from '../adapters/starknet/index.js'
@@ -30,7 +29,6 @@ import ybTbtcToken from '../adapters/yb-tbtc-token/index.js'
 import ybTbtcYieldbearing from '../adapters/yb-tbtc-yieldbearing/index.js'
 import ybWbtcToken from '../adapters/yb-wbtc-token/index.js'
 import ybWbtcYieldbearing from '../adapters/yb-wbtc-yieldbearing/index.js'
-import zenrockZenbtc from '../adapters/zenrock-zenbtc/index.js'
 import zestProtocol from '../adapters/zest-protocol/index.js'
 
 export const adapters: Record<string, Adapter> = {
@@ -41,15 +39,14 @@ export const adapters: Record<string, Adapter> = {
   botanix,
   "coinbase-btc-yield-fund": coinbaseBtcYieldFund,
   "hermetica-hbtc": hermeticaHbtc,
+  "kraken-bitcoin-earn": krakenBitcoinEarn,
   "lightning-network": lightningNetwork,
   "lombard-earn": lombardEarn,
   "lombard-finance": lombardFinance,
-  "maple-finance-bitcoinyield": mapleFinanceBitcoinyield,
   "merlin-btc": merlinBtc,
   "mezo-earn": mezoEarn,
   "morpho-gauntlet": morphoGauntlet,
   "solv-btc-plus": solvBtcPlus,
-  stacks,
   "stacks-dual-stacking": stacksDualStacking,
   "stacks-dual-stacking-boosted": stacksDualStackingBoosted,
   starknet,
@@ -60,6 +57,5 @@ export const adapters: Record<string, Adapter> = {
   "yb-tbtc-yieldbearing": ybTbtcYieldbearing,
   "yb-wbtc-token": ybWbtcToken,
   "yb-wbtc-yieldbearing": ybWbtcYieldbearing,
-  "zenrock-zenbtc": zenrockZenbtc,
   "zest-protocol": zestProtocol,
 }

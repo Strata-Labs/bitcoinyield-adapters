@@ -9,7 +9,13 @@
  * latest entry with non-zero yield instead.
  */
 
-import { defineAdapter, http, math, parseNumber } from "@bitcoinyield/adapters";
+import {
+  defineAdapter,
+  http,
+  math,
+  parseNumber,
+  requirePositive,
+} from "@bitcoinyield/adapters";
 
 const AMBOSS_API = "https://amboss.space/graphql";
 
@@ -94,14 +100,29 @@ export default defineAdapter({
     if (!series || series.length === 0)
       throw new Error("Amboss Magma: no LNR series");
 
-    // Skip current day (unfinalized; lnr_yield = 0)
-    const latest =
-      series.find((e) => parseNumber(e.lnr_yield, 0) > 0) ?? series[0]!;
+    // Skip unfinalized entries (current day reports lnr_yield = 0), then pick
+    // by date rather than assuming the series' sort order.
+    const finalized = series.filter((e) => parseNumber(e.lnr_yield, 0) > 0);
+    if (finalized.length === 0) {
+      throw new Error(
+        "Amboss Magma: no finalized lnr_yield entry in the queried window",
+      );
+    }
+    const latest = finalized.reduce((a, b) =>
+      new Date(b.date).getTime() > new Date(a.date).getTime() ? b : a,
+    );
 
     return [
       {
         symbol: "BTC",
-        tvlBtc: math.fromUnits(parseNumber(stats.completed_size, 0), 8),
+        // NOTE: completed_size is Magma's cumulative completed-order volume —
+        // the closest thing the API exposes to deployed liquidity, but it
+        // never decreases when channels close. No per-moment locked figure
+        // exists in this API.
+        tvlBtc: math.fromUnits(
+          requirePositive(stats.completed_size, "completed_size"),
+          8,
+        ),
         apr: math.toPercent(parseNumber(latest.lnr_yield, 0)),
         metadata: {
           completedOrders: stats.completed_orders,

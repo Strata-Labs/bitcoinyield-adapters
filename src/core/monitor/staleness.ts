@@ -7,6 +7,8 @@ export interface StalenessReport {
   lastUpdateAt: Date | null;
   hoursSilent: number | null;
   isStale: boolean;
+  /** Set when the freshness check itself failed for this slug. */
+  error?: string;
 }
 
 export interface StalenessOptions {
@@ -22,30 +24,40 @@ export async function getStalenessReport(
 ): Promise<StalenessReport[]> {
   const grace = options.gracePeriodMs ?? DEFAULT_STALENESS_GRACE_MS;
   const now = options.now ?? new Date();
-  const reports: StalenessReport[] = [];
 
-  for (const slug of options.slugs) {
-    const latest = await storage.getLatest(slug);
-    if (!latest) {
-      reports.push({
+  // Per-slug isolation: one failed getLatest must not abort the sweep for
+  // every other adapter, and the ~30 independent lookups shouldn't run
+  // serially against a 10s-per-call HTTP storage.
+  return Promise.all(
+    options.slugs.map(async (slug): Promise<StalenessReport> => {
+      let latest;
+      try {
+        latest = await storage.getLatest(slug);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        // eslint-disable-next-line no-console
+        console.error(`[staleness] getLatest(${slug}) failed: ${message}`);
+        return {
+          slug,
+          lastUpdateAt: null,
+          hoursSilent: null,
+          isStale: false,
+          error: message,
+        };
+      }
+      if (!latest) {
+        return { slug, lastUpdateAt: null, hoursSilent: null, isStale: false };
+      }
+      const silentMs = now.getTime() - latest.timestamp.getTime();
+      const hoursSilent = silentMs / (60 * 60 * 1000);
+      return {
         slug,
-        lastUpdateAt: null,
-        hoursSilent: null,
-        isStale: false,
-      });
-      continue;
-    }
-    const silentMs = now.getTime() - latest.timestamp.getTime();
-    const hoursSilent = silentMs / (60 * 60 * 1000);
-    reports.push({
-      slug,
-      lastUpdateAt: latest.timestamp,
-      hoursSilent,
-      isStale: silentMs > grace,
-    });
-  }
-
-  return reports;
+        lastUpdateAt: latest.timestamp,
+        hoursSilent,
+        isStale: silentMs > grace,
+      };
+    }),
+  );
 }
 
 export async function runStalenessMonitor(

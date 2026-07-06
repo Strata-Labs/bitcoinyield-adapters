@@ -37,10 +37,12 @@ export function getClient(): PublicClient {
     warnedAboutFallback = true;
   }
 
+  // Per-transport retryCount stays 0: fallback() already retries across
+  // transports, and stacking both multiplies attempts during an outage.
   const transports = rpcUrl
     ? [viemHttp(rpcUrl, { retryCount: 3, timeout: 15_000 })]
     : PUBLIC_FALLBACKS.map((url) =>
-        viemHttp(url, { retryCount: 1, timeout: 10_000 }),
+        viemHttp(url, { retryCount: 0, timeout: 10_000 }),
       );
 
   client = createPublicClient({

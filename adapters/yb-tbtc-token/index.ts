@@ -4,12 +4,6 @@
  * Staked variant of `yb-tbtc-yieldbearing` — adds $YB emissions on top of
  * the LP trading-fee yield. See `adapters/yb-wbtc-token` for the full
  * commentary on the pattern.
- *
- * Per-market addresses (from Yield Basis docs):
- *   LT (yb-tBTC)      : 0xaC0a340C1644321D0BBc6404946d828c1EBfAC92
- *   Gauge             : 0x30ba8b27F2128c770B90C965FF671E08b9310D21
- *   GaugeController   : 0x1Be14811A3a06F6aF4fA64310a636e1Df04c1c21
- *   Underlying        : 0x18084fbA666a33d37592fA2633fD49a74DD93a88 (tBTC, 18 decimals)
  */
 
 import {
@@ -22,8 +16,8 @@ import {
   BLOCKS_PER_30D,
 } from "@bitcoinyield/adapters";
 
-const LT = "0xaC0a340C1644321D0BBc6404946d828c1EBfAC92";
-const GAUGE = "0x30ba8b27F2128c770B90C965FF671E08b9310D21";
+const LT = "0x771F7290428d830ECd41E980745c327e507823Ec";
+const GAUGE = "0xe83D888FE3213DD3471DE0bC1957E0f94F038483";
 const GAUGE_CONTROLLER = "0x1Be14811A3a06F6aF4fA64310a636e1Df04c1c21";
 const ASSET_ADDRESS = "0x18084fbA666a33d37592fA2633fD49a74DD93a88"; // tBTC mainnet
 const ASSET_DECIMALS = 18;
@@ -123,15 +117,27 @@ export default defineAdapter({
     const tvlBtc = math.mul(stakedShares, growth.sharePriceNow);
     requirePositive(tvlBtc, "tvlBtc");
 
-    const ybDelta = Number(emissionsFuture - emissionsNow) / 1e18;
-    const ybPerYear = (ybDelta / EMISSIONS_WINDOW_SECONDS) * SECONDS_PER_YEAR;
-    const stakedTvlUsd = tvlBtc * btcPriceUsd;
-    const emissionsUsdPerYear = ybPerYear * ybPriceUsd;
-    const emissionsApr =
-      stakedTvlUsd > 0 ? (emissionsUsdPerYear / stakedTvlUsd) * 100 : 0;
+    if (!growth.hasBaseline) {
+      throw new Error(
+        "yb-tbtc-token: 30d share-price baseline unavailable (archive read " +
+          "failed) — refusing to report emissions-only APR",
+      );
+    }
+
+    const ybDelta = math.fromUnits(emissionsFuture - emissionsNow, 18);
+    const ybPerYear = math.div(
+      math.mul(ybDelta, SECONDS_PER_YEAR),
+      EMISSIONS_WINDOW_SECONDS,
+    );
+    const stakedTvlUsd = math.mul(tvlBtc, btcPriceUsd);
+    const emissionsUsdPerYear = math.mul(ybPerYear, ybPriceUsd);
+    const emissionsApr = math.mul(
+      math.div(emissionsUsdPerYear, stakedTvlUsd),
+      100,
+    );
 
     const baseApr = growth.apr;
-    const apr = baseApr + emissionsApr;
+    const apr = math.add(baseApr, emissionsApr);
 
     return [
       {

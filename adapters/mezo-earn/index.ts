@@ -35,9 +35,18 @@ export default defineAdapter({
       page.matchNumber(/([\d.]+)\s*%\s*APR/i),
       "mezo apr",
     );
-    const tvlUsd = requirePositive(
-      page.matchNumber(/TVL\s*\$?([\d,]+(?:\.\d+)?)/i),
+    // Capture an optional K/M/B suffix — if the UI ever abbreviates
+    // ("TVL $262.8M"), reading 262.8 as whole dollars would be a ~10^6
+    // understatement that still passes every downstream guard.
+    const tvlMatch = page.text.match(/TVL\s*\$?([\d,]+(?:\.\d+)?)\s*([KMB])?/i);
+    const tvlBase = requirePositive(
+      tvlMatch?.[1]?.replace(/,/g, ""),
       "mezo tvlUsd",
+    );
+    const suffix = tvlMatch?.[2]?.toUpperCase();
+    const tvlUsd = math.mul(
+      tvlBase,
+      suffix === "B" ? 1e9 : suffix === "M" ? 1e6 : suffix === "K" ? 1e3 : 1,
     );
 
     return [

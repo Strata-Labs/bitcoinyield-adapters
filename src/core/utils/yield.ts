@@ -112,7 +112,14 @@ export async function readShareGrowth(
       apy,
       hasBaseline: true,
     };
-  } catch {
+  } catch (err) {
+    // Usually a non-archive RPC that can't serve state at this depth.
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[readShareGrowth] historical read failed for ${address}.${functionName} ` +
+        `at block ${historicalBlockNumber} (likely non-archive RPC): ` +
+        `${err instanceof Error ? err.message : String(err)}`,
+    );
     return {
       sharePriceNow,
       sharePriceThen: null,

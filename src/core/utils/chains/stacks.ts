@@ -45,7 +45,13 @@ export async function getFungibleTokenBalance(args: {
   }>(url);
 
   const tokens = data.fungible_tokens;
-  if (!tokens) return 0;
+  if (!tokens) {
+    // The balances endpoint always includes this object (empty when the
+    // address holds nothing) — its absence means the API shape changed.
+    throw new Error(
+      `Hiro balances response for ${address} has no fungible_tokens field`,
+    );
+  }
 
   // Hiro returns the token id as either the full "addr.contract::asset" form or
   // the short "addr.contract" form depending on version. Match both.
@@ -53,9 +59,16 @@ export async function getFungibleTokenBalance(args: {
   for (const [key, entry] of Object.entries(tokens)) {
     if (key === tokenId || key === shortId) {
       const n = Number(entry.balance);
-      return Number.isFinite(n) ? n : 0;
+      if (!Number.isFinite(n)) {
+        throw new Error(
+          `Hiro returned non-numeric balance for ${tokenId} at ${address}: ${entry.balance}`,
+        );
+      }
+      return n;
     }
   }
+  // A missing key is a genuine zero balance — Hiro omits tokens the address
+  // doesn't hold.
   return 0;
 }
 
@@ -87,7 +100,12 @@ export async function callReadOnly(input: {
     contractAddress,
     contractName,
     functionName: input.functionName,
-    network: STACKS_MAINNET,
+    // Honor the same base-URL override the REST helpers use — otherwise a
+    // dedicated Hiro endpoint in production only reroutes balance reads.
+    network: {
+      ...STACKS_MAINNET,
+      client: { ...STACKS_MAINNET.client, baseUrl: getHiroBase() },
+    },
     functionArgs: input.args ?? [],
     senderAddress: input.senderAddress ?? contractAddress,
   });

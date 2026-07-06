@@ -18,7 +18,7 @@ Always use `pnpm`. Same as the main app.
 ```bash
 pnpm install
 pnpm test <slug>      # run one adapter live, print result
-pnpm validate <slug>  # schema check only, no network
+pnpm validate <slug>  # full pipeline live (fetch + guards), no DB writes
 pnpm list             # list registered adapters
 pnpm build            # regenerates registry then builds
 ```
@@ -44,7 +44,7 @@ export default defineAdapter({
     // ctx.env.SOME_API_KEY is available if declared above
     const data = await http.get(...)
     const tvlBtc = requirePositive(parseFloat(data.tvl), 'data.tvl')
-    return [{ pool: 'pool-name', symbol: 'BTC', tvlBtc, apr }]
+    return [{ symbol: 'BTC', tvlBtc, apr }]
   },
 })
 ```
@@ -55,7 +55,7 @@ Adapters are auto-discovered. Adding a new file in `adapters/` and running `pnpm
 
 For every adapter run: `fetch → normalize → boundaries → spike-guard → POST to main app`.
 
-- **normalize** — requires `pool`, `symbol`, `tvlBtc`, `apr`; derives `tvlUsd` from `btcPrice` if not given
+- **normalize** — requires `symbol`, `tvlBtc`, `apr`; derives `tvlUsd` from `btcPrice` if not given
 - **boundaries** — drops rows outside `tvlBtc 0.0001..5_000_000` or `apr 0..1000`
 - **spike-guard** — drops rows that moved >2x in either direction within 5h (vs DefiLlama's one-way 5x)
 
@@ -64,10 +64,11 @@ For every adapter run: `fetch → normalize → boundaries → spike-guard → P
 Reach for these before writing anything custom:
 
 - `math.{add,sub,mul,div,fromBps,clamp}` — decimal.js underneath. **Never use raw JS arithmetic for money.**
-- `prices.getBtc()` — single source of BTC price (5min cache via DefiLlama). Don't call CoinGecko/Binance directly.
+- `prices.getBtc()` — single source of BTC price (5min cache via CoinGecko). Don't call other price APIs directly.
 - `http.{get,post,getText,graphql}` — has retries + timeouts built in.
-- `scraper.{scrape,openPage,matchNumber}` — Browserbase wrapper for JS-rendered pages.
+- `scraper.{scrape,openPage,matchNumber}` — Browserbase wrapper for JS-rendered pages. **Last resort only** — always prefer a contract read or protocol API; scrape only when neither exists (currently just mezo-earn and merlin-btc).
 - `chains.ethereum` — viem with fallback transport across 4 public RPCs, multicall, shared `erc20Abi` and `erc4626VaultAbi`.
+- `chains.evm` / `getEvmClient(config)` — env-first client factory for non-mainnet EVM chains (Botanix, Ink). Set `BITCOINYIELD_RPC_<CHAIN>` in production.
 - `chains.stacks` — Hiro REST + `@stacks/transactions` for read-only contract calls.
 - `requirePositive(value, name)` — **throws loudly if zero/negative/NaN**. Use this aggressively. Silent zeros are the bug we built this framework to prevent.
 
@@ -105,14 +106,15 @@ Required env in production:
 Discord webhook (optional, for operational alerts):
 
 - `DISCORD_WEBHOOK` — single channel for every alert type. Each message
-  prefixes its category (`SPIKE`, `STALE`, `REGRESSION`, `DIVERGENCE`,
-  `CAPACITY`) so one channel is enough.
+  prefixes its category (`SPIKE`, `BOUNDARY`, `STALE`, `REGRESSION`) so one
+  channel is enough.
 
 ## Open follow-ups
 
-- **Yield Basis adapter** — currently reports staking yield only; should combine staking + trading yield. Needs investigation into how to fetch trading-yield component.
-- **Lombard multi-chain LBTC** — currently reads Ethereum supply only (~$740M); production aggregates across Ethereum + Base + other chains (~$1.03B).
-- **`adapterStatus` collection** — needs to be added to the main app before status reporting can go live.
+- **Lombard multi-chain LBTC** — intentionally reads Ethereum supply only (~$650M); the protocol-wide backing (~$960M) requires summing BTC balances across Lombard's `/api/v1/addresses` custody list (needs a Bitcoin indexer). Documented in the adapter README.
+- **`adapterStatus` collection** — needs to be added to the main app before status reporting can go live (see INTEGRATION.md).
+- **acre-mezo** — vault is dormant (share price frozen, one-off ~0.9% drawdown); the adapter sets `metadata.allowZeroApr` so the pipeline accepts its 0% rows. Remove the flag when Acre relaunches.
+- **zenrock-zenbtc** — disabled 2026-07-06: API reports `yieldAPY: 0` with the exchange rate frozen since ~2026-06-21. Re-enable when Zenrock resumes paying yield.
 
 ## When in doubt
 

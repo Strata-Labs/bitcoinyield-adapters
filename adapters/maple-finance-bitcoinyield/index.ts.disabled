@@ -4,6 +4,13 @@
  *
  * Maple returns weeklyApy/monthlyApy as bigint-scaled-by-10^30, and tvlNative
  * in satoshis (8 decimals) — using math.fromUnits keeps the conversion clean.
+ *
+ * DISABLED 2026-07-06: Maple removed the BTC Yield product from their app
+ * (app.maple.finance/earn/btc-yield redirects to /earn; nativePool tvl = 0,
+ * existing positions run off to a 2026-09-16 maturity). Note also that
+ * POOL_ID resolves to the "Syrup USDC" pool, so the APY this adapter
+ * reported was USDC lending yield, not BTC yield — if Maple relaunches a
+ * BTC product, find the correct pool id before re-enabling.
  */
 
 import { defineAdapter, http, math, prices } from "@bitcoinyield/adapters";

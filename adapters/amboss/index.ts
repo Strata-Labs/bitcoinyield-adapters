@@ -24,7 +24,7 @@ interface AmbossData {
   rails?: {
     stats?: {
       total_btc_graph?: {
-        data?: Array<{ deployed_liquidity: { btc: string } }>;
+        data?: Array<{ deployed_liquidity: { btc: string }; date: string }>;
       };
     };
   };
@@ -60,8 +60,14 @@ export default defineAdapter({
       throw new Error("Invalid Amboss response: empty graph data");
     }
 
+    // Pick by date instead of assuming the series' sort order — reading a
+    // fixed end of the array reports a stale datapoint forever if the API's
+    // ordering isn't what we guessed.
+    const latest = points.reduce((a, b) =>
+      new Date(b.date).getTime() > new Date(a.date).getTime() ? b : a,
+    );
     const tvlBtc = requirePositive(
-      parseFloat(points[0]!.deployed_liquidity.btc),
+      latest.deployed_liquidity.btc,
       "deployed_liquidity.btc",
     );
 

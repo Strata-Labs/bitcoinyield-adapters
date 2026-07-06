@@ -1,9 +1,19 @@
 /**
+ * DISABLED 2026-07-06: the API reports yieldAPY=0 and the exchange rate has
+ * been frozen at 1.00379 since ~2026-06-21 — the protocol appears to have
+ * stopped paying yield. Re-enable (rename to index.ts + pnpm build) when
+ * Zenrock resumes and the API reports a positive yieldAPY again.
+ *
  * Zenrock zenBTC adapter — Bitcoin yield via Zenrock's Diamond protocol.
  * Single HTTP endpoint returns supply (sats), exchange rate, and APY.
  */
 
-import { defineAdapter, http, math, parseNumber } from "@bitcoinyield/adapters";
+import {
+  defineAdapter,
+  http,
+  math,
+  requirePositive,
+} from "@bitcoinyield/adapters";
 
 const ZENROCK_API =
   "https://backend-api.diamond.zenrocklabs.io/api/v1/zenbtc/yield?limit=10&offset=0";
@@ -33,8 +43,11 @@ export default defineAdapter({
     return [
       {
         symbol: "zenBTC",
-        tvlBtc: math.fromUnits(parseNumber(data.tokenSupply, 0), 8),
-        apr: data.stats?.yieldAPY ?? 0,
+        tvlBtc: math.fromUnits(
+          requirePositive(data.tokenSupply, "zenrock.tokenSupply"),
+          8,
+        ),
+        apr: requirePositive(data.stats?.yieldAPY, "zenrock.stats.yieldAPY"),
         metadata: {
           exchangeRate: data.exchangeRate,
           totalBtcYielded: data.stats?.totalBtcYielded,

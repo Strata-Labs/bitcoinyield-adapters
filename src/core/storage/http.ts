@@ -118,12 +118,18 @@ export class HttpStorage implements Storage {
   }
 }
 
-interface SerializedMetricRow extends Omit<MetricRow, "timestamp"> {
+interface SerializedMetricRow extends Omit<MetricRow, "timestamp" | "symbol"> {
   timestamp: string;
+  /** The main app doesn't persist symbol yet; absent from `latest` responses. */
+  symbol?: string;
 }
 
 function deserializeRow(row: SerializedMetricRow): MetricRow {
-  return { ...row, timestamp: new Date(row.timestamp) };
+  return {
+    ...row,
+    symbol: row.symbol ?? "",
+    timestamp: new Date(row.timestamp),
+  };
 }
 
 async function safeText(res: Response): Promise<string> {

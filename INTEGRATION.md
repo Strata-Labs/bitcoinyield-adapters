@@ -1,0 +1,115 @@
+# Main-app integration
+
+This microservice holds no database credentials. Every hour it runs all
+registered adapters and reports results to the main BitcoinYield app over
+HTTP. This document is the complete contract the main app must implement —
+once these three endpoints exist and the env vars below are set, the
+pipeline is live end to end.
+
+## Authentication
+
+Every request carries the shared secret in a header:
+
+```
+x-adapter-key: <BITCOINYIELD_ADAPTER_KEY>
+```
+
+Reject anything else with `401`. The key is a single static secret shared
+between the two deploys.
+
+## Endpoints
+
+### 1. `POST /api/adapter-metrics`
+
+Writes one metrics row. Called once per adapter per hourly run (only when
+the run produced a row that survived the pipeline's guards).
+
+```jsonc
+// request body
+{
+  "slug": "kraken-bitcoin-earn",
+  "row": {
+    "symbol": "BTC",
+    "tvlBtc": 4510.7696,
+    "tvlUsd": 283876269.33,
+    "btcPrice": 62933,
+    "apr": 1.3315,
+    "metadata": { "aprSource": "onchain-7d" }, // optional, adapter-specific
+    "timestamp": "2026-07-06T07:00:00.000Z", // ISO 8601
+  },
+}
+```
+
+Respond `200` on success (body ignored). Any non-2xx marks the run failed
+and Inngest retries it.
+
+**Idempotency requirement:** the service pins `row.timestamp` to the
+Inngest event's `triggeredAt`, so a retried invocation re-sends the same
+timestamp. The main app MUST upsert / dedup on `(slug, timestamp)` —
+otherwise a dropped response becomes a duplicate row.
+
+### 2. `GET /api/adapter-metrics/:slug/latest`
+
+Returns the most recent stored row for a slug. The pipeline's spike guard
+compares each new row against this baseline.
+
+```jsonc
+// 200 response
+{ "row": { /* same shape as row above */ } }
+// or, when the adapter has no rows yet:
+{ "row": null }   // 404 is also treated as "no baseline"
+```
+
+If this endpoint is down, adapters still run but the spike guard can't
+compare against history — new rows pass through unguarded.
+
+### 3. `POST /api/adapter-status`
+
+Upserts operational health per adapter, written after every run (success
+or failure). Intended to back an adapter-health view later; storing the
+latest state per slug is enough for now.
+
+```jsonc
+// request body
+{
+  "slug": "kraken-bitcoin-earn",
+  "status": "success", // "success" | "error"
+  "finishedAt": "2026-07-06T07:00:04.100Z",
+  "durationMs": 4100,
+  "rowsInserted": 1, // optional
+  "rowsDropped": 0, // optional
+  "lastError": null, // optional; first 4000 chars of the error
+}
+```
+
+Upsert by `slug` (one row per adapter, latest state wins). Respond `200`.
+
+## Production environment (this service, on Vercel)
+
+| Variable                                                               | Purpose                                                                                     |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY`                            | Inngest auth (dashboard → Manage)                                                           |
+| `BITCOINYIELD_API_URL`                                                 | Main app base URL                                                                           |
+| `BITCOINYIELD_ADAPTER_KEY`                                             | Shared secret for the endpoints above                                                       |
+| `BITCOINYIELD_RPC_ETHEREUM`                                            | Dedicated mainnet RPC (QuickNode/Alchemy). Needed for archive reads that power on-chain APR |
+| `BITCOINYIELD_RPC_BOTANIX`                                             | Dedicated Botanix RPC (chain 3637)                                                          |
+| `BITCOINYIELD_RPC_INK`                                                 | Dedicated Ink RPC (chain 57073, Kraken Bitcoin Earn)                                        |
+| `BITCOINYIELD_BROWSERBASE_KEY` / `BITCOINYIELD_BROWSERBASE_PROJECT_ID` | Scraper adapters (mezo-earn, merlin-btc only)                                               |
+| `BITCOINYIELD_AMBOSS_API_KEY`                                          | amboss adapter                                                                              |
+| `BITCOINYIELD_VOYAGER_API_KEY`                                         | starknet adapter                                                                            |
+| `DISCORD_WEBHOOK`                                                      | Operational paging (optional but recommended)                                               |
+
+Optional: `BITCOINYIELD_STORAGE_MODE=log` makes the service print
+`[adapter-metrics]` / `[adapter-status]` lines to stdout instead of POSTing
+— useful for verifying the deploy before the main-app endpoints are live.
+
+## Rollout order
+
+1. Deploy this service with `BITCOINYIELD_STORAGE_MODE=log` and confirm
+   hourly runs produce sane rows in the Vercel logs.
+2. Implement the three endpoints on the main app (with the dedup rule).
+3. Set `BITCOINYIELD_API_URL` + `BITCOINYIELD_ADAPTER_KEY`, remove
+   `BITCOINYIELD_STORAGE_MODE`, redeploy.
+4. Cut the main app's legacy `src/inngest/functions/ingest-*.ts` crons over
+   to reading from `protocolMetrics` rows written by this service, then
+   delete them.

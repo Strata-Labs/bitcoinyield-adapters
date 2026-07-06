@@ -147,17 +147,8 @@ export async function scrape(
 
     return {
       text,
-      match: (regex: RegExp) => {
-        const m = text.match(regex);
-        return m && m[1] ? m[1] : null;
-      },
-      matchNumber: (regex: RegExp) => {
-        const m = text.match(regex);
-        if (!m || !m[1]) return null;
-        const cleaned = m[1].replace(/,/g, "");
-        const n = parseFloat(cleaned);
-        return Number.isFinite(n) ? n : null;
-      },
+      match: (regex: RegExp) => firstCapture(text, regex),
+      matchNumber: (regex: RegExp) => matchNumber(text, regex),
     };
   } finally {
     await stagehand.close().catch(() => {
@@ -183,14 +174,27 @@ export interface OpenedSession {
 }
 
 /**
+ * First capturing group of a regex against the text, or null.
+ * A `g` flag is stripped first: `String.match` with a global regex returns
+ * full matches with NO capture groups, so `m[1]` would silently be the
+ * second full match instead of the first group.
+ */
+function firstCapture(text: string, regex: RegExp): string | null {
+  const safe = regex.global
+    ? new RegExp(regex.source, regex.flags.replace(/g/g, ""))
+    : regex;
+  const m = text.match(safe);
+  return m && m[1] ? m[1] : null;
+}
+
+/**
  * Extract the first capturing group of a regex, parse as comma-stripped float.
  * Returns null if no match or non-finite. Use with openPage() text scrapes.
  */
 export function matchNumber(text: string, regex: RegExp): number | null {
-  const m = text.match(regex);
-  if (!m || !m[1]) return null;
-  const cleaned = m[1].replace(/,/g, "");
-  const n = parseFloat(cleaned);
+  const captured = firstCapture(text, regex);
+  if (captured === null) return null;
+  const n = parseFloat(captured.replace(/,/g, ""));
   return Number.isFinite(n) ? n : null;
 }
 

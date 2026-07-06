@@ -13,7 +13,13 @@
  * APR: Lombard's own analytics endpoint.
  */
 
-import { defineAdapter, ethereum, http, math } from "@bitcoinyield/adapters";
+import {
+  defineAdapter,
+  ethereum,
+  http,
+  math,
+  requirePositive,
+} from "@bitcoinyield/adapters";
 
 const LBTC_ADDRESS = "0x8236a87084f8B84306f72007F36F2618A5634494" as const;
 const LOMBARD_APY_URL =
@@ -63,7 +69,9 @@ export default defineAdapter({
           supply.result as bigint,
           decimals.result as number,
         ),
-        apr: math.toPercent(apyData.lbtc_estimated_apy),
+        apr: math.toPercent(
+          requirePositive(apyData.lbtc_estimated_apy, "lbtc_estimated_apy"),
+        ),
         metadata: { contractAddress: LBTC_ADDRESS, decimals: decimals.result },
       },
     ];

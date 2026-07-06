@@ -1,10 +1,6 @@
 /**
  * Botanix adapter — stBTC ERC-4626 vault on Botanix L2 (chain id 3637).
  *
- * Sets up a viem client inline because Botanix isn't on the framework's
- * `ethereum.*` helper (mainnet-only). If a second non-mainnet EVM adapter
- * appears, factor a `chains/evm.ts` helper.
- *
  * APR is realized 30-day share-price growth (not the forward-looking
  * theoretical yield the previous blend.money-scraping version reported),
  * matching how the other vault adapters report yield.
@@ -13,17 +9,13 @@
 import {
   defineAdapter,
   ethereum,
+  getEvmClient,
   math,
   requirePositive,
   readShareGrowth,
   BLOCKS_PER_30D,
+  type EvmChainConfig,
 } from "@bitcoinyield/adapters";
-import {
-  createPublicClient,
-  defineChain,
-  fallback,
-  http as viemHttp,
-} from "viem";
 
 const VAULT = "0xF4586028FFdA7Eca636864F80f8a3f2589E33795";
 const CHAIN_ID = 3637;
@@ -34,22 +26,19 @@ const ASSET_DECIMALS = 18;
 
 const ONE_SHARE_18_DECIMALS = 10n ** 18n;
 
-const BOTANIX_RPCS = [
-  "https://rpc.ankr.com/botanix_mainnet",
-  "https://3637.rpc.thirdweb.com",
-  "https://node.botanixlabs.dev",
-];
-
-const botanix = defineChain({
+const BOTANIX: EvmChainConfig = {
   id: CHAIN_ID,
   name: "Botanix",
+  rpcEnv: "BITCOINYIELD_RPC_BOTANIX",
+  fallbackRpcs: [
+    "https://rpc.ankr.com/botanix_mainnet",
+    "https://3637.rpc.thirdweb.com",
+    "https://node.botanixlabs.dev",
+  ],
   nativeCurrency: { name: "Bitcoin", symbol: "BTC", decimals: 18 },
-  rpcUrls: { default: { http: BOTANIX_RPCS } },
-  contracts: {
-    // Required for client.multicall(); canonical multicall3, also live on Botanix.
-    multicall3: { address: "0xcA11bde05977b3631167028862bE2a173976CA11" },
-  },
-});
+  // Canonical multicall3, also live on Botanix; required for client.multicall().
+  multicall3: "0xcA11bde05977b3631167028862bE2a173976CA11",
+};
 
 export default defineAdapter({
   slug: "botanix",
@@ -57,16 +46,10 @@ export default defineAdapter({
   url: "https://botanixlabs.com",
   category: "yield-bearing",
   custody: "multisig",
+  requires: { rpc: ["botanix"] },
 
   async fetch() {
-    const client = createPublicClient({
-      chain: botanix,
-      transport: fallback(
-        BOTANIX_RPCS.map((url) =>
-          viemHttp(url, { retryCount: 1, timeout: 10_000 }),
-        ),
-      ),
-    });
+    const client = getEvmClient(BOTANIX);
 
     const [calls, growth] = await Promise.all([
       client.multicall({
@@ -160,6 +143,13 @@ export default defineAdapter({
       pausedCall?.status === "success"
         ? (pausedCall.result as boolean)
         : undefined;
+
+    if (!growth.hasBaseline) {
+      throw new Error(
+        "botanix: 30d share-price baseline unavailable (archive read failed) " +
+          "— refusing to report apr=0",
+      );
+    }
 
     return [
       {

@@ -14,6 +14,16 @@ export async function getTotalSbtcBtc(): Promise<number> {
       stacks.getFungibleTokenBalance({ address, tokenId: SBTC_TOKEN_ID }),
     ),
   );
+  // A zero balance is either an emptied vault or a renamed asset identifier
+  // silently matching nothing — surface it so a halved TVL doesn't pass
+  // unnoticed (the total still counts the other vaults).
+  balances.forEach((balance, i) => {
+    if (balance === 0) {
+      console.warn(
+        `[zest-protocol] vault ${VAULT_ADDRESSES[i]} holds 0 sBTC — emptied, or token id changed?`,
+      );
+    }
+  });
   const totalSats = math.add(...balances);
   return math.fromUnits(totalSats, 8);
 }

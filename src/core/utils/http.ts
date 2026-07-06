@@ -2,7 +2,9 @@
  * HTTP helper with retries + timeouts.
  *
  * Wraps native fetch (Node 20+) with sensible defaults so adapters don't
- * have to reimplement retry logic or worry about hung requests.
+ * have to reimplement retry logic or worry about hung requests. The timeout
+ * covers the FULL request including the body read — a server that returns
+ * headers and then stalls the body must not hang an adapter run.
  */
 
 export interface HttpOptions {
@@ -20,11 +22,12 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_RETRIES = 3;
 const DEFAULT_RETRY_DELAY_MS = 500;
 
-async function request(
+async function requestBody(
   url: string,
   init: RequestInit,
   options: HttpOptions = {},
-): Promise<Response> {
+  parse: "json" | "text",
+): Promise<unknown> {
   const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
   const retries = options.retries ?? DEFAULT_RETRIES;
   const retryDelay = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
@@ -38,35 +41,70 @@ async function request(
       const response = await fetch(url, {
         ...init,
         signal: controller.signal,
-        headers: {
-          ...(init.headers as Record<string, string> | undefined),
-          ...(options.headers ?? {}),
-        },
+        headers: mergeHeaders(init.headers, options.headers),
       });
-      clearTimeout(timer);
 
       // Retry on 5xx and 429; throw on other 4xx
       if (response.status >= 500 || response.status === 429) {
+        await drainBody(response);
         lastError = new Error(`HTTP ${response.status} from ${url}`);
         if (attempt < retries) {
+          clearTimeout(timer);
           await delay(retryDelay * 2 ** attempt);
           continue;
         }
         throw lastError;
       }
-      return response;
+      if (!response.ok) {
+        const snippet = await safeSnippet(response);
+        throw new Error(
+          `HTTP ${response.status} from ${url}${snippet ? `: ${snippet}` : ""}`,
+        );
+      }
+      return parse === "json" ? await response.json() : await response.text();
     } catch (err) {
-      clearTimeout(timer);
       lastError = err;
       if (attempt < retries && isRetryableError(err)) {
+        clearTimeout(timer);
         await delay(retryDelay * 2 ** attempt);
         continue;
       }
       throw err;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
   throw lastError ?? new Error(`Request failed: ${url}`);
+}
+
+/** Case-insensitive merge — `options.headers` wins over `init.headers`. */
+function mergeHeaders(
+  base: HeadersInit | undefined,
+  extra: Record<string, string> | undefined,
+): Headers {
+  const headers = new Headers(base);
+  for (const [key, value] of Object.entries(extra ?? {})) {
+    headers.set(key, value);
+  }
+  return headers;
+}
+
+/** Release the connection of a response we're abandoning (retry paths). */
+async function drainBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Abandoned-body cleanup is best-effort.
+  }
+}
+
+async function safeSnippet(response: Response): Promise<string> {
+  try {
+    return (await response.text()).slice(0, 300);
+  } catch {
+    return "";
+  }
 }
 
 function isRetryableError(err: unknown): boolean {
@@ -91,11 +129,7 @@ export async function get<T = unknown>(
   url: string,
   options?: HttpOptions,
 ): Promise<T> {
-  const response = await request(url, { method: "GET" }, options);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} from ${url}`);
-  }
-  return (await response.json()) as T;
+  return (await requestBody(url, { method: "GET" }, options, "json")) as T;
 }
 
 /**
@@ -106,7 +140,7 @@ export async function post<T = unknown>(
   body: unknown,
   options?: HttpOptions,
 ): Promise<T> {
-  const response = await request(
+  return (await requestBody(
     url,
     {
       method: "POST",
@@ -114,11 +148,8 @@ export async function post<T = unknown>(
       headers: { "Content-Type": "application/json" },
     },
     options,
-  );
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} from ${url}`);
-  }
-  return (await response.json()) as T;
+    "json",
+  )) as T;
 }
 
 /**
@@ -129,11 +160,7 @@ export async function getText(
   url: string,
   options?: HttpOptions,
 ): Promise<string> {
-  const response = await request(url, { method: "GET" }, options);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} from ${url}`);
-  }
-  return await response.text();
+  return (await requestBody(url, { method: "GET" }, options, "text")) as string;
 }
 
 /**

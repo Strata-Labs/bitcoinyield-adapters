@@ -3,7 +3,13 @@
  * APY: Lombard analytics. TVL/total_assets: Sevenseas vault feed.
  */
 
-import { defineAdapter, http, math, parseNumber } from "@bitcoinyield/adapters";
+import {
+  defineAdapter,
+  http,
+  math,
+  parseNumber,
+  requirePositive,
+} from "@bitcoinyield/adapters";
 
 const APY_URL =
   "https://mainnet.prod.lombard.finance/api/v1/analytics/btce/apy/summary";
@@ -45,9 +51,14 @@ export default defineAdapter({
 
     if (!latestVault) throw new Error("Lombard Earn vault feed returned empty");
 
-    const tvlUsd = parseNumber(latestVault.tvl, 0);
-    const tvlBtc = parseNumber(latestVault.total_assets, 0);
-    const apr = totalApyDecimal ? math.toPercent(totalApyDecimal) : 0;
+    const tvlUsd = requirePositive(latestVault.tvl, "lombard-earn.tvl");
+    const tvlBtc = requirePositive(
+      latestVault.total_assets,
+      "lombard-earn.total_assets",
+    );
+    const apr = math.toPercent(
+      requirePositive(totalApyDecimal, "lombard-earn.total_apy"),
+    );
 
     return [
       {

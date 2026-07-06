@@ -28,7 +28,28 @@ export function normalize(
     if (!Number.isFinite(apr)) {
       throw new Error(`Adapter ${adapter.slug} has non-finite apr: ${row.apr}`);
     }
+    // apr=0 is the one wrong value no downstream guard can see: boundaries
+    // allow it and the spike guard skips non-positive values. Zero must be an
+    // explicit adapter decision, never a fallback's output.
+    if (apr === 0 && row.metadata?.allowZeroApr !== true) {
+      throw new Error(
+        `Adapter ${adapter.slug} produced apr=0. If the protocol genuinely ` +
+          `pays nothing right now, set metadata.allowZeroApr; otherwise the ` +
+          `source field is broken.`,
+      );
+    }
 
+    if (row.tvlUsd !== undefined) {
+      if (
+        typeof row.tvlUsd !== "number" ||
+        !Number.isFinite(row.tvlUsd) ||
+        row.tvlUsd < 0
+      ) {
+        throw new Error(
+          `Adapter ${adapter.slug} has invalid tvlUsd: ${row.tvlUsd}`,
+        );
+      }
+    }
     const tvlUsd = row.tvlUsd ?? math.mul(tvlBtc, btcPrice);
 
     return {

@@ -1,26 +1,10 @@
 /**
  * Yield Basis YB-WBTC Token (Staked) vault — on-chain reads.
  *
- * Same protocol as `yb-wbtc-yieldbearing` but covers the staked variant —
- * users who lock their yb-WBTC into the LiquidityGauge to earn $YB
- * emissions on top of the underlying LP trading-fee yield.
- *
- * Per-market addresses (from Yield Basis docs):
- *   LT (yb-WBTC)      : 0xfBF3C16676055776Ab9B286492D8f13e30e2E763
- *   Gauge             : 0xbc56e3edB67b56d598aCE07668b138815F45d7aa
- *   GaugeController   : 0x1Be14811A3a06F6aF4fA64310a636e1Df04c1c21
- *   Underlying        : 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599 (WBTC, 8 decimals)
- *
- * APR has two components:
- *   - `baseApr`      ← 30-day share-price growth, same `pricePerShare` as
- *                      the yield-bearing variant. (Trading-fee yield.)
- *   - `emissionsApr` ← projected $YB token emissions over the next hour,
- *                      annualized, valued at CoinGecko's $YB spot.
- *   - `apr` (headline) = baseApr + emissionsApr
- *
- * The split lives in metadata so the platform can render either component
- * independently if its UI wants to match the upstream dashboard's
- * "Real Yield" / "Token Yield" two-column display.
+ * Staked variant of `yb-wbtc-yieldbearing`: yb-WBTC locked in the
+ * LiquidityGauge earning $YB emissions on top of LP trading-fee yield.
+ * Headline apr = baseApr (30d pricePerShare growth) + emissionsApr; the
+ * split lives in metadata to match the dashboard's Real/Token Yield columns.
  *
  * Emissions math:
  *   ybPerSec   = (preview_emissions(gauge, now+1h) - preview_emissions(gauge, now)) / 3600
@@ -29,10 +13,9 @@
  *   apr%       = ybPerYear × ybPriceUsd / stakedTvlUsd × 100
  *
  * Important: the staked-share denominator is `LT.updated_balances.staked`,
- * NOT `gauge.totalSupply()`. The two differ because the gauge wraps yb-WBTC
- * into a separate ERC-4626 share, and the boost / share-conversion math
- * makes them diverge. Using the LT's staked count matches the upstream
- * dashboard's emissions APR to within 0.1%.
+ * NOT `gauge.totalSupply()` — the gauge wraps yb-WBTC into its own ERC-4626
+ * share and boost math makes them diverge. The LT's staked count matches
+ * the upstream dashboard's emissions APR to within 0.1%.
  */
 
 import {
@@ -45,8 +28,8 @@ import {
   BLOCKS_PER_30D,
 } from "@bitcoinyield/adapters";
 
-const LT = "0xfBF3C16676055776Ab9B286492D8f13e30e2E763";
-const GAUGE = "0xbc56e3edB67b56d598aCE07668b138815F45d7aa";
+const LT = "0x651D4b8168488FA163D85304662E8278d4c55BAa";
+const GAUGE = "0xAa0b1d265F23972eafB7d088e963BD31403A58F5";
 const GAUGE_CONTROLLER = "0x1Be14811A3a06F6aF4fA64310a636e1Df04c1c21";
 const ASSET_ADDRESS = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"; // WBTC mainnet
 const ASSET_DECIMALS = 8;
@@ -103,7 +86,6 @@ export default defineAdapter({
     const nowTs = latestBlock.timestamp;
     const futureTs = nowTs + BigInt(EMISSIONS_WINDOW_SECONDS);
 
-    // Parallelize everything else.
     const [
       balancesCall,
       growth,
@@ -148,16 +130,27 @@ export default defineAdapter({
     const tvlBtc = math.mul(stakedShares, growth.sharePriceNow);
     requirePositive(tvlBtc, "tvlBtc");
 
-    // Emissions APR
-    const ybDelta = Number(emissionsFuture - emissionsNow) / 1e18;
-    const ybPerYear = (ybDelta / EMISSIONS_WINDOW_SECONDS) * SECONDS_PER_YEAR;
-    const stakedTvlUsd = tvlBtc * btcPriceUsd;
-    const emissionsUsdPerYear = ybPerYear * ybPriceUsd;
-    const emissionsApr =
-      stakedTvlUsd > 0 ? (emissionsUsdPerYear / stakedTvlUsd) * 100 : 0;
+    if (!growth.hasBaseline) {
+      throw new Error(
+        "yb-wbtc-token: 30d share-price baseline unavailable (archive read " +
+          "failed) — refusing to report emissions-only APR",
+      );
+    }
+
+    const ybDelta = math.fromUnits(emissionsFuture - emissionsNow, 18);
+    const ybPerYear = math.div(
+      math.mul(ybDelta, SECONDS_PER_YEAR),
+      EMISSIONS_WINDOW_SECONDS,
+    );
+    const stakedTvlUsd = math.mul(tvlBtc, btcPriceUsd);
+    const emissionsUsdPerYear = math.mul(ybPerYear, ybPriceUsd);
+    const emissionsApr = math.mul(
+      math.div(emissionsUsdPerYear, stakedTvlUsd),
+      100,
+    );
 
     const baseApr = growth.apr;
-    const apr = baseApr + emissionsApr;
+    const apr = math.add(baseApr, emissionsApr);
 
     return [
       {
