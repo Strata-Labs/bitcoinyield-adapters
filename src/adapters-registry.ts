@@ -29,7 +29,6 @@ import ybTbtcToken from '../adapters/yb-tbtc-token/index.js'
 import ybTbtcYieldbearing from '../adapters/yb-tbtc-yieldbearing/index.js'
 import ybWbtcToken from '../adapters/yb-wbtc-token/index.js'
 import ybWbtcYieldbearing from '../adapters/yb-wbtc-yieldbearing/index.js'
-import zenrockZenbtc from '../adapters/zenrock-zenbtc/index.js'
 import zestProtocol from '../adapters/zest-protocol/index.js'
 
 export const adapters: Record<string, Adapter> = {
@@ -58,6 +57,5 @@ export const adapters: Record<string, Adapter> = {
   "yb-tbtc-yieldbearing": ybTbtcYieldbearing,
   "yb-wbtc-token": ybWbtcToken,
   "yb-wbtc-yieldbearing": ybWbtcYieldbearing,
-  "zenrock-zenbtc": zenrockZenbtc,
   "zest-protocol": zestProtocol,
 }
