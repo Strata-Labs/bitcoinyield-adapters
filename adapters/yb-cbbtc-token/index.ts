@@ -6,8 +6,8 @@
  * commentary on the pattern.
  *
  * Per-market addresses (from Yield Basis docs):
- *   LT (yb-cbBTC)     : 0xAC0cfa7742069a8af0c63e14FFD0fe6b3e1Bf8D2
- *   Gauge             : 0xf3081A2eB8927C0462864EC3FdbE927C842A0893
+ *   LT (yb-cbBTC)     : 0x722FC3640BA007C3E9867CCdB0dCa59F2e2F29F9
+ *   Gauge             : 0xF8764cBcdb15a9E4c7CA1b0b8a578d9ebEEC1b6f
  *   GaugeController   : 0x1Be14811A3a06F6aF4fA64310a636e1Df04c1c21
  *   Underlying        : 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf (cbBTC, 8 decimals)
  */
@@ -22,8 +22,8 @@ import {
   BLOCKS_PER_30D,
 } from "@bitcoinyield/adapters";
 
-const LT = "0xAC0cfa7742069a8af0c63e14FFD0fe6b3e1Bf8D2";
-const GAUGE = "0xf3081A2eB8927C0462864EC3FdbE927C842A0893";
+const LT = "0x722FC3640BA007C3E9867CCdB0dCa59F2e2F29F9";
+const GAUGE = "0xF8764cBcdb15a9E4c7CA1b0b8a578d9ebEEC1b6f";
 const GAUGE_CONTROLLER = "0x1Be14811A3a06F6aF4fA64310a636e1Df04c1c21";
 const ASSET_ADDRESS = "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf"; // cbBTC mainnet
 const ASSET_DECIMALS = 8;

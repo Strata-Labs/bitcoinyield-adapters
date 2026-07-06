@@ -5,7 +5,7 @@
  * ("Leveraged Token") contract.
  *
  * Per-market addresses (from Yield Basis docs):
- *   LT (yb-tBTC) : 0xaC0a340C1644321D0BBc6404946d828c1EBfAC92
+ *   LT (yb-tBTC) : 0x771F7290428d830ECd41E980745c327e507823Ec
  *   Underlying   : 0x18084fbA666a33d37592fA2633fD49a74DD93a88 (tBTC, 18 decimals)
  *
  * APR comes from a 30-day on-chain window via `readShareGrowth` — accurate
@@ -25,7 +25,7 @@ import {
   BLOCKS_PER_30D,
 } from "@bitcoinyield/adapters";
 
-const LT = "0xaC0a340C1644321D0BBc6404946d828c1EBfAC92";
+const LT = "0x771F7290428d830ECd41E980745c327e507823Ec";
 const ASSET_ADDRESS = "0x18084fbA666a33d37592fA2633fD49a74DD93a88"; // tBTC mainnet
 const ASSET_DECIMALS = 18;
 

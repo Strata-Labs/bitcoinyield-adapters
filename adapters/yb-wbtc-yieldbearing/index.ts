@@ -5,7 +5,7 @@
  * ("Leveraged Token") contract.
  *
  * Per-market addresses (from Yield Basis docs):
- *   LT (yb-WBTC) : 0xfBF3C16676055776Ab9B286492D8f13e30e2E763
+ *   LT (yb-WBTC) : 0x651D4b8168488FA163D85304662E8278d4c55BAa
  *   Underlying   : 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599 (WBTC, 8 decimals)
  *
  * LT contract behavior we rely on:
@@ -34,7 +34,7 @@ import {
   BLOCKS_PER_30D,
 } from "@bitcoinyield/adapters";
 
-const LT = "0xfBF3C16676055776Ab9B286492D8f13e30e2E763";
+const LT = "0x651D4b8168488FA163D85304662E8278d4c55BAa";
 const ASSET_ADDRESS = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"; // WBTC mainnet
 const ASSET_DECIMALS = 8; // WBTC has 8 decimals; pricePerShare normalizes to 18 so this is metadata-only.
 

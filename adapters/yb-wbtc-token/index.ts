@@ -6,8 +6,8 @@
  * emissions on top of the underlying LP trading-fee yield.
  *
  * Per-market addresses (from Yield Basis docs):
- *   LT (yb-WBTC)      : 0xfBF3C16676055776Ab9B286492D8f13e30e2E763
- *   Gauge             : 0xbc56e3edB67b56d598aCE07668b138815F45d7aa
+ *   LT (yb-WBTC)      : 0x651D4b8168488FA163D85304662E8278d4c55BAa
+ *   Gauge             : 0xAa0b1d265F23972eafB7d088e963BD31403A58F5
  *   GaugeController   : 0x1Be14811A3a06F6aF4fA64310a636e1Df04c1c21
  *   Underlying        : 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599 (WBTC, 8 decimals)
  *
@@ -45,8 +45,8 @@ import {
   BLOCKS_PER_30D,
 } from "@bitcoinyield/adapters";
 
-const LT = "0xfBF3C16676055776Ab9B286492D8f13e30e2E763";
-const GAUGE = "0xbc56e3edB67b56d598aCE07668b138815F45d7aa";
+const LT = "0x651D4b8168488FA163D85304662E8278d4c55BAa";
+const GAUGE = "0xAa0b1d265F23972eafB7d088e963BD31403A58F5";
 const GAUGE_CONTROLLER = "0x1Be14811A3a06F6aF4fA64310a636e1Df04c1c21";
 const ASSET_ADDRESS = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"; // WBTC mainnet
 const ASSET_DECIMALS = 8;
