@@ -9,7 +9,7 @@ import amboss from '../adapters/amboss/index.js'
 import ambossMagma from '../adapters/amboss-magma/index.js'
 import babylon from '../adapters/babylon/index.js'
 import botanix from '../adapters/botanix/index.js'
-import coinbaseBtcYieldFund from '../adapters/coinbase-btc-yield-fund/index.js'
+import coinbaseBitcoinYieldFund from '../adapters/coinbase-bitcoin-yield-fund/index.js'
 import hermeticaHbtc from '../adapters/hermetica-hbtc/index.js'
 import krakenBitcoinEarn from '../adapters/kraken-bitcoin-earn/index.js'
 import lightningNetwork from '../adapters/lightning-network/index.js'
@@ -22,7 +22,7 @@ import solvBtcPlus from '../adapters/solv-btc-plus/index.js'
 import stacksDualStacking from '../adapters/stacks-dual-stacking/index.js'
 import stacksDualStackingBoosted from '../adapters/stacks-dual-stacking-boosted/index.js'
 import starknet from '../adapters/starknet/index.js'
-import sypherCapital from '../adapters/sypher-capital/index.js'
+import sypherCapitalBitcoinYieldFund from '../adapters/sypher-capital-bitcoin-yield-fund/index.js'
 import ybCbbtcToken from '../adapters/yb-cbbtc-token/index.js'
 import ybCbbtcYieldbearing from '../adapters/yb-cbbtc-yieldbearing/index.js'
 import ybTbtcToken from '../adapters/yb-tbtc-token/index.js'
@@ -37,7 +37,7 @@ export const adapters: Record<string, Adapter> = {
   "amboss-magma": ambossMagma,
   babylon,
   botanix,
-  "coinbase-btc-yield-fund": coinbaseBtcYieldFund,
+  "coinbase-bitcoin-yield-fund": coinbaseBitcoinYieldFund,
   "hermetica-hbtc": hermeticaHbtc,
   "kraken-bitcoin-earn": krakenBitcoinEarn,
   "lightning-network": lightningNetwork,
@@ -50,7 +50,7 @@ export const adapters: Record<string, Adapter> = {
   "stacks-dual-stacking": stacksDualStacking,
   "stacks-dual-stacking-boosted": stacksDualStackingBoosted,
   starknet,
-  "sypher-capital": sypherCapital,
+  "sypher-capital-bitcoin-yield-fund": sypherCapitalBitcoinYieldFund,
   "yb-cbbtc-token": ybCbbtcToken,
   "yb-cbbtc-yieldbearing": ybCbbtcYieldbearing,
   "yb-tbtc-token": ybTbtcToken,

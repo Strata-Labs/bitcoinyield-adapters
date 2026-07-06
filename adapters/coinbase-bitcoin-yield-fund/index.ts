@@ -16,7 +16,9 @@ const REPORTED_APR = 4.0; // ~4.00% APR
 const REPORTED_TVL_USD = 0; // not disclosed
 
 export default defineAdapter({
-  slug: "coinbase-btc-yield-fund",
+  // Slug matches the main app's existing protocol key — renaming breaks the
+  // site's metrics lookup and history continuity.
+  slug: "coinbase-bitcoin-yield-fund",
   name: "Coinbase BTC Yield Fund",
   url: "https://www.coinbase.com",
   category: "yield-bearing",
