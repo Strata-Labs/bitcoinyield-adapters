@@ -75,10 +75,14 @@ const adapterFunctions = adapterList.map((adapter: Adapter) =>
         runAdapter(adapter, {
           storage,
           notifier,
+          // Pin to the event, never the wall clock: the main app dedups on
+          // (slug, timestamp), so a retried step must produce the same
+          // timestamp. event.ts covers dashboard-invoked events that omit
+          // triggeredAt.
           now:
             typeof event.data?.triggeredAt === "number"
               ? new Date(event.data.triggeredAt)
-              : new Date(),
+              : new Date(event.ts ?? Date.now()),
         }),
       ),
   ),
