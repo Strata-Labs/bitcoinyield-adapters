@@ -15,7 +15,6 @@ import krakenBitcoinEarn from '../adapters/kraken-bitcoin-earn/index.js'
 import lightningNetwork from '../adapters/lightning-network/index.js'
 import lombardEarn from '../adapters/lombard-earn/index.js'
 import lombardFinance from '../adapters/lombard-finance/index.js'
-import mapleFinanceBitcoinyield from '../adapters/maple-finance-bitcoinyield/index.js'
 import merlinBtc from '../adapters/merlin-btc/index.js'
 import mezoEarn from '../adapters/mezo-earn/index.js'
 import morphoGauntlet from '../adapters/morpho-gauntlet/index.js'
@@ -45,7 +44,6 @@ export const adapters: Record<string, Adapter> = {
   "lightning-network": lightningNetwork,
   "lombard-earn": lombardEarn,
   "lombard-finance": lombardFinance,
-  "maple-finance-bitcoinyield": mapleFinanceBitcoinyield,
   "merlin-btc": merlinBtc,
   "mezo-earn": mezoEarn,
   "morpho-gauntlet": morphoGauntlet,
