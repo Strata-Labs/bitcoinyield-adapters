@@ -48,10 +48,13 @@ export function getEvmClient(config: EvmChainConfig): PublicClient {
     warned.add(config.id);
   }
 
+  // Per-transport retryCount stays 0 in the fallback path: the fallback()
+  // wrapper already retries across transports, and stacking both multiplies
+  // into dozens of attempts during a broad outage.
   const transports = dedicated
     ? [viemHttp(dedicated, { retryCount: 3, timeout: 15_000 })]
     : config.fallbackRpcs.map((url) =>
-        viemHttp(url, { retryCount: 1, timeout: 10_000 }),
+        viemHttp(url, { retryCount: 0, timeout: 10_000 }),
       );
 
   const chain = defineChain({
