@@ -25,6 +25,11 @@ export * as scraper from "./core/utils/scraper.js";
 export * as ethereum from "./core/utils/chains/ethereum.js";
 export * as stacks from "./core/utils/chains/stacks.js";
 export {
+  getEvmClient,
+  _resetEvmClients,
+  type EvmChainConfig,
+} from "./core/utils/chains/evm.js";
+export {
   readShareGrowth,
   BLOCKS_PER_30D,
   type ShareGrowthOptions,
