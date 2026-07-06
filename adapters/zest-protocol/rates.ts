@@ -10,7 +10,13 @@
  * post-halving the current-cycle number is stale.
  */
 
-import { http, math, parseNumber, stacks } from "@bitcoinyield/adapters";
+import {
+  http,
+  math,
+  parseNumber,
+  requirePositive,
+  stacks,
+} from "@bitcoinyield/adapters";
 import { DEPLOYER } from "./constants.js";
 
 const STACKING_APR_URL =
@@ -36,7 +42,12 @@ export async function getSupplyApy(): Promise<number> {
     // The contract returns { supply-apy: uint, borrow-apy: uint } where uints
     // are scaled by 10000 (e.g. 350 means 3.50%).
     const supply = extractField(result, "supply-apy");
-    if (supply === undefined) return 0;
+    if (supply === undefined) {
+      console.warn(
+        "[zest-protocol] v0-rates response had no supply-apy field, supplyApy=0",
+      );
+      return 0;
+    }
     return math.div(parseNumber(supply, 0), 100);
   } catch (err) {
     console.warn(`[zest-protocol] v0-rates read failed, supplyApy=0: ${err}`);
@@ -45,13 +56,17 @@ export async function getSupplyApy(): Promise<number> {
 }
 
 /**
- * Fetches the next-cycle sBTC stacking APR from DegenLab.
+ * Fetches the next-cycle sBTC dual-stacking APR from DegenLab.
  * Forward-looking value — what new depositors will earn on the next cycle.
+ *
+ * Deliberately `next_cycle_max_defi_apr`, NOT the endpoint's `stacking_apr`:
+ * sBTC deposited into a DeFi venue like Zest earns the DeFi-tier
+ * dual-stacking rate, not the plain stacking rate. Confirmed 2026-07-06.
  */
 export async function getStackingApr(): Promise<number> {
   const data = await http.get<StackingResponse>(STACKING_APR_URL);
   const value = data.next_cycle_max_defi_apr ?? data.max_defi_apr;
-  return parseNumber(value, 0);
+  return requirePositive(value, "degenlab next_cycle_max_defi_apr");
 }
 
 /**

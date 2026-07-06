@@ -139,6 +139,11 @@ export default defineAdapter({
         tvlBtc,
         apr: growth.apr,
         metadata: {
+          // Vault is dormant (share price frozen), so 0% is the true current
+          // rate — opt out of the pipeline's apr=0 rejection. Remove this
+          // when Acre relaunches so a broken read fails loudly again.
+          allowZeroApr: true,
+          hasBaseline: growth.hasBaseline,
           vaultAddress: ACRE_VAULT,
           assetAddress,
           sharePrice: growth.sharePriceNow,

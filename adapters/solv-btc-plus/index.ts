@@ -7,7 +7,7 @@ import {
   http,
   math,
   prices,
-  requireNumber,
+  requirePositive,
 } from "@bitcoinyield/adapters";
 
 const SOLV_STATS = "https://rest.sft-api.com/stats/btcplus";
@@ -30,12 +30,12 @@ export default defineAdapter({
       prices.getBtc(),
     ]);
 
-    const apr = requireNumber(data.apy, "apy");
-    const tvlUsd = requireNumber(data.tvl, "tvl");
+    const apr = requirePositive(data.apy, "apy");
+    const tvlUsd = requirePositive(data.tvl, "tvl");
 
     return [
       {
-        symbol: "SolvBTC.BBN",
+        symbol: "BTC+",
         tvlBtc: math.div(tvlUsd, btcPrice),
         tvlUsd,
         apr,

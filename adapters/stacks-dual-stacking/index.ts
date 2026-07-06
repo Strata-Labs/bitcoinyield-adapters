@@ -10,7 +10,7 @@ import {
   defineAdapter,
   http,
   parseNumber,
-  requireNumber,
+  requirePositive,
 } from "@bitcoinyield/adapters";
 
 const ENDPOINT =
@@ -40,8 +40,11 @@ export default defineAdapter({
       throw new Error("Invalid DegenLab response: missing next_cycle_base_apr");
     }
 
-    const apr = requireNumber(data.next_cycle_base_apr, "next_cycle_base_apr");
-    const tvlBtc = parseNumber(data.base_sbtc, 0);
+    const apr = requirePositive(
+      data.next_cycle_base_apr,
+      "next_cycle_base_apr",
+    );
+    const tvlBtc = requirePositive(data.base_sbtc, "base_sbtc");
     const tvlUsd = parseNumber(data.base_tvl, 0);
 
     return [

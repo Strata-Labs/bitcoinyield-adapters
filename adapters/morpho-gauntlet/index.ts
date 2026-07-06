@@ -145,10 +145,11 @@ export default defineAdapter({
 
     const apiNetApy = morphoData.vaultByAddress?.state?.netApy;
     const apiGrossApy = morphoData.vaultByAddress?.state?.apy;
-    if (apiNetApy === undefined && apiGrossApy === undefined) {
-      throw new Error("Morpho API returned no APY data for vault");
-    }
-    const apr = math.toPercent(apiNetApy ?? apiGrossApy ?? 0);
+    // requirePositive also rejects a present-but-zero APY — a paused vault or
+    // API glitch must fail the run, not store 0%.
+    const apr = math.toPercent(
+      requirePositive(apiNetApy ?? apiGrossApy, "morpho netApy/apy"),
+    );
 
     return [
       {

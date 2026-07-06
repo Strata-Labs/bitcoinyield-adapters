@@ -80,6 +80,13 @@ export default defineAdapter({
     const tvlBtc = math.mul(yieldBearingShares, growth.sharePriceNow);
     requirePositive(tvlBtc, "tvlBtc");
 
+    if (!growth.hasBaseline) {
+      throw new Error(
+        "yb-tbtc-yieldbearing: 30d share-price baseline unavailable " +
+          "(archive read failed) — refusing to report apr=0",
+      );
+    }
+
     return [
       {
         symbol: "yb-tBTC",

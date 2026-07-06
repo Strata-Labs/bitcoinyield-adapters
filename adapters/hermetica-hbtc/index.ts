@@ -39,6 +39,42 @@ interface HiroTxPage {
   }>;
 }
 
+const PAGE_SIZE = 50;
+const MAX_TX_PAGES = 4;
+
+/**
+ * Sum successful log-reward amounts since the cutoff. Paginates: a busy week
+ * of unrelated controller txs can push rewards past the first page, which
+ * would silently understate APR if we read only page one.
+ */
+async function sumRecentRewards(
+  cutoffMs: number,
+): Promise<{ rewardSats: number; rewardTxCount: number }> {
+  let rewardSats = 0;
+  let rewardTxCount = 0;
+  for (let page = 0; page < MAX_TX_PAGES; page++) {
+    const txPage = await http.get<HiroTxPage>(
+      `${HIRO_API}/extended/v2/addresses/${CONTROLLER_CONTRACT}/transactions` +
+        `?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`,
+    );
+    let pastCutoff = false;
+    for (const { tx } of txPage.results) {
+      if (new Date(tx.burn_block_time_iso).getTime() < cutoffMs) {
+        pastCutoff = true;
+        continue;
+      }
+      if (tx.tx_status !== "success") continue;
+      if (tx.contract_call?.function_name !== "log-reward") continue;
+      const arg = tx.contract_call.function_args?.[0]?.repr;
+      if (!arg?.startsWith("u")) continue;
+      rewardSats += Number(arg.slice(1));
+      rewardTxCount += 1;
+    }
+    if (pastCutoff || txPage.results.length < PAGE_SIZE) break;
+  }
+  return { rewardSats, rewardTxCount };
+}
+
 export default defineAdapter({
   slug: "hermetica-hbtc",
   name: "Hermetica hBTC",
@@ -48,33 +84,20 @@ export default defineAdapter({
   requires: { stacks: true },
 
   async fetch() {
-    const [totalAssetsRaw, txPage] = await Promise.all([
+    const cutoffMs = Date.now() - APR_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    const [totalAssetsRaw, rewards] = await Promise.all([
       stacks.callReadOnly({
         contract: STATE_CONTRACT,
         functionName: "get-total-assets",
       }),
-      http.get<HiroTxPage>(
-        `${HIRO_API}/extended/v2/addresses/${CONTROLLER_CONTRACT}/transactions?limit=50`,
-      ),
+      sumRecentRewards(cutoffMs),
     ]);
 
     const totalAssetsSats = requirePositive(
       Number(totalAssetsRaw),
       "get-total-assets",
     );
-
-    const cutoff = Date.now() - APR_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-    let rewardSats = 0;
-    let rewardTxCount = 0;
-    for (const { tx } of txPage.results) {
-      if (tx.tx_status !== "success") continue;
-      if (tx.contract_call?.function_name !== "log-reward") continue;
-      if (new Date(tx.burn_block_time_iso).getTime() < cutoff) continue;
-      const arg = tx.contract_call.function_args?.[0]?.repr;
-      if (!arg?.startsWith("u")) continue;
-      rewardSats += Number(arg.slice(1));
-      rewardTxCount += 1;
-    }
+    const { rewardSats, rewardTxCount } = rewards;
 
     if (rewardTxCount < MIN_REWARD_SAMPLES) {
       throw new Error(
@@ -83,9 +106,12 @@ export default defineAdapter({
       );
     }
 
+    // One log-reward lands per day, so the sample count IS the observed
+    // window. Dividing by the full 7d when an indexing gap dropped a day
+    // would underreport APR by up to ~29%.
     const apr = math.mul(
       math.div(rewardSats, totalAssetsSats),
-      (365 / APR_WINDOW_DAYS) * 100,
+      (365 / rewardTxCount) * 100,
     );
 
     return [

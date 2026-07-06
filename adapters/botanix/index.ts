@@ -144,6 +144,13 @@ export default defineAdapter({
         ? (pausedCall.result as boolean)
         : undefined;
 
+    if (!growth.hasBaseline) {
+      throw new Error(
+        "botanix: 30d share-price baseline unavailable (archive read failed) " +
+          "— refusing to report apr=0",
+      );
+    }
+
     return [
       {
         symbol: "stBTC",

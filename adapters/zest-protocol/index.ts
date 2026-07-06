@@ -26,11 +26,20 @@ export default defineAdapter({
       getStackingApr(),
     ]);
 
+    // getSupplyApy fails soft to 0 (logged); if the stacking component is
+    // also 0 the total is a fabricated 0% — fail the run instead.
+    const apr = math.add(supplyApy, stackingApr);
+    if (apr <= 0) {
+      throw new Error(
+        `zest-protocol: apr=${apr} (supplyApy=${supplyApy}, stackingApr=${stackingApr}) — both sources broken`,
+      );
+    }
+
     return [
       {
         symbol: "sBTC",
         tvlBtc,
-        apr: math.add(supplyApy, stackingApr),
+        apr,
         metadata: { supplyApy, stackingApr },
       },
     ];

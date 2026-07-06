@@ -130,15 +130,27 @@ export default defineAdapter({
     const tvlBtc = math.mul(stakedShares, growth.sharePriceNow);
     requirePositive(tvlBtc, "tvlBtc");
 
-    const ybDelta = Number(emissionsFuture - emissionsNow) / 1e18;
-    const ybPerYear = (ybDelta / EMISSIONS_WINDOW_SECONDS) * SECONDS_PER_YEAR;
-    const stakedTvlUsd = tvlBtc * btcPriceUsd;
-    const emissionsUsdPerYear = ybPerYear * ybPriceUsd;
-    const emissionsApr =
-      stakedTvlUsd > 0 ? (emissionsUsdPerYear / stakedTvlUsd) * 100 : 0;
+    if (!growth.hasBaseline) {
+      throw new Error(
+        "yb-wbtc-token: 30d share-price baseline unavailable (archive read " +
+          "failed) — refusing to report emissions-only APR",
+      );
+    }
+
+    const ybDelta = math.fromUnits(emissionsFuture - emissionsNow, 18);
+    const ybPerYear = math.div(
+      math.mul(ybDelta, SECONDS_PER_YEAR),
+      EMISSIONS_WINDOW_SECONDS,
+    );
+    const stakedTvlUsd = math.mul(tvlBtc, btcPriceUsd);
+    const emissionsUsdPerYear = math.mul(ybPerYear, ybPriceUsd);
+    const emissionsApr = math.mul(
+      math.div(emissionsUsdPerYear, stakedTvlUsd),
+      100,
+    );
 
     const baseApr = growth.apr;
-    const apr = baseApr + emissionsApr;
+    const apr = math.add(baseApr, emissionsApr);
 
     return [
       {
