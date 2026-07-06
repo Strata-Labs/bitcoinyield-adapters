@@ -78,6 +78,7 @@ The CLI ships with `NoopStorage` and no DB driver. **It is physically impossible
 | `prices.getBtc()`                                                      | Cached canonical BTC price (CoinGecko). Same source across all adapters. |
 | `http.get`, `http.post`                                                | Native fetch with 3 retries (exponential backoff) + 10s timeout          |
 | `ethereum.readContract`, `ethereum.multicall`                          | viem-backed Ethereum reads with public RPC fallback if no key            |
+| `getEvmClient(config)`                                                 | Env-first client factory for non-mainnet EVM chains (Botanix, Ink, …)    |
 | `stacks.getFungibleTokenBalance`, `stacks.callReadOnly`                | Hiro REST + Clarity contract reads                                       |
 | `requirePositive(value, name)`                                         | Throws with descriptive error if not > 0 — replaces silent-zero bugs     |
 
@@ -95,12 +96,12 @@ The pipeline is what makes the difference between "30 lines you wrote" and "prod
 
 ## What an adapter folder looks like
 
-Required:
+Minimum:
 
 ```
 adapters/my-protocol/
-├── README.md          # what it does, data sources, gotchas
-└── index.ts           # default-exports defineAdapter(...)
+├── index.ts           # required — default-exports defineAdapter(...)
+└── README.md          # recommended — data sources, gotchas, cost estimate
 ```
 
 For complex adapters (multi-step contract reads, helper extraction, etc.) use whatever structure helps:
