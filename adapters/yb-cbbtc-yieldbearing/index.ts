@@ -4,10 +4,6 @@
  * Replaces the Browserbase scraper with direct calls on Yield Basis's LT
  * ("Leveraged Token") contract.
  *
- * Per-market addresses (from Yield Basis docs):
- *   LT (yb-cbBTC): 0x722FC3640BA007C3E9867CCdB0dCa59F2e2F29F9
- *   Underlying   : 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf (cbBTC, 8 decimals)
- *
  * APR comes from a 30-day on-chain window via `readShareGrowth` — accurate
  * from day 1 with no warmup cycle. See `adapters/yb-wbtc-yieldbearing` for
  * full commentary on the pattern.

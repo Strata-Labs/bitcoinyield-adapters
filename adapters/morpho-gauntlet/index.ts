@@ -1,34 +1,15 @@
 /**
  * Morpho Gauntlet WBTC Core vault adapter — hybrid (TVL on-chain, APR from API).
  *
- * Why hybrid: this is a Morpho Blue lending vault with variable utilization.
- * The vault holds idle liquidity + active loans, and the mix shifts over
- * time as borrowers come and go. Two consequences:
+ * For a lending vault, realized 30d share-price growth and the forward Net
+ * APY diverge (idle liquidity + shifting utilization), and the forward rate
+ * is what depositors act on. So: on-chain `totalAssets()` for TVL, Morpho
+ * GraphQL `netApy` for the headline APR (matches Morpho's UI), and the
+ * realized delta kept in `metadata.apy30dRealized` for drift auditing.
  *
- *   - The on-chain share-price delta gives us **realized** 30d yield —
- *     accurate but measures historical performance, not what new depositors
- *     will earn going forward.
- *
- *   - Morpho's UI shows the **forward** Net APY (current weighted supply
- *     rate across the vault's markets, net of curator fee). For lending
- *     vaults, that's the more useful number for users deciding whether to
- *     deposit now.
- *
- * For pure-strategy vaults (Acre, Botanix, Yield Basis) the two converge
- * because there's no idle cash. For lending vaults they diverge. So we use:
- *
- *   - On-chain `totalAssets()` for **TVL** (verifiable, no API dependency)
- *   - Morpho GraphQL `netApy` for **APR** (matches Morpho's own UI exactly)
- *   - On-chain `convertToAssets` delta exposed as `metadata.apy30dRealized`
- *     so users can compare forward vs realized
- *
- * FUTURE: on-chain Net APY reconstruction is possible — read the vault's
- * supplyQueue + position(marketId) per market, look up each Morpho Blue
- * market's borrowRate via its IRM contract, weight by supplied amount, and
- * subtract vault.fee(). It's ~150 LOC + three contract ABIs (MetaMorpho,
- * Morpho Blue singleton, IRM). Not worth it for one vault, but if we onboard
- * 3+ MetaMorpho-curated products, build a shared `morphoVaultSupplyRate()`
- * helper and switch all of them off the API.
+ * If we onboard 3+ MetaMorpho vaults, reconstruct Net APY on-chain via a
+ * shared helper (supplyQueue → per-market IRM rates → weight − fee) and
+ * drop the API dependency.
  */
 
 import {
@@ -72,11 +53,6 @@ export default defineAdapter({
   requires: { rpc: ["ethereum"] },
 
   async fetch() {
-    // Three parallel concerns:
-    //  1. On-chain reads for TVL + asset sanity check + capacity
-    //  2. On-chain share-price delta — kept as `metadata.apy30dRealized`
-    //     so users (and we) can spot drift from Morpho's forward rate
-    //  3. Morpho GraphQL — the forward Net APY that becomes our headline
     const [calls, growth, morphoData] = await Promise.all([
       ethereum.multicall([
         {
@@ -137,8 +113,7 @@ export default defineAdapter({
     );
     requirePositive(tvlBtc, "tvlBtc");
 
-    // Assert the underlying matches what we hardcoded. Same defensive
-    // pattern as Acre / Botanix.
+    // If asset() drifts from our constant, ASSET_DECIMALS is wrong and the math breaks.
     const assetAddress =
       assetCall?.status === "success"
         ? (assetCall.result as string)
@@ -153,10 +128,8 @@ export default defineAdapter({
       );
     }
 
-    // MetaMorpho's `maxDeposit` returns a value much larger than realistic
-    // BTC TVL when uncapped, but smaller than `uint256.max`. Treat anything
-    // above 1M BTC as effectively uncapped (more than the total wBTC supply
-    // on Ethereum).
+    // Uncapped MetaMorpho vaults return a huge (but sub-uint256.max) maxDeposit;
+    // above 1M BTC (> total WBTC supply) treat as uncapped.
     const maxDepositRaw =
       maxDepositCall?.status === "success"
         ? (maxDepositCall.result as bigint)
@@ -170,7 +143,6 @@ export default defineAdapter({
         ? maxDepositAsNumber
         : null; // null = effectively uncapped
 
-    // Headline APR from Morpho's API (matches their UI exactly).
     const apiNetApy = morphoData.vaultByAddress?.state?.netApy;
     const apiGrossApy = morphoData.vaultByAddress?.state?.apy;
     if (apiNetApy === undefined && apiGrossApy === undefined) {
@@ -185,23 +157,19 @@ export default defineAdapter({
         apr,
         metadata: {
           vaultAddress: VAULT,
-          assetAddress, // expected: 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599 (WBTC)
+          assetAddress,
           assetDecimals: ASSET_DECIMALS,
           vaultDecimals: vaultDecimalsCall.result as number,
-          // On-chain audit fields. These let us (and consumers) verify
-          // Morpho's reported netApy against realized 30d performance.
-          // For a lending vault, drift is expected: forward vs realized.
           sharePrice: growth.sharePriceNow,
           sharePrice30dAgo: growth.sharePriceThen,
-          apy30dRealized: growth.apr,
+          apy30dRealized: growth.apr, // audit: realized vs forward drift
           apy30dRealizedCompounded: growth.apy,
           windowDays: growth.elapsedDays,
-          // API-reported numbers for transparency.
           grossApy:
             apiGrossApy !== undefined ? math.toPercent(apiGrossApy) : undefined,
           netApy:
             apiNetApy !== undefined ? math.toPercent(apiNetApy) : undefined,
-          maxDepositBtc, // null = effectively uncapped (> 1M BTC)
+          maxDepositBtc, // null = uncapped
           curator: "Gauntlet",
           yieldMechanism: "lending-vault",
           aprSource: "morpho-api-net-apy",

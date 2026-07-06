@@ -4,12 +4,6 @@
  * Staked variant of `yb-tbtc-yieldbearing` — adds $YB emissions on top of
  * the LP trading-fee yield. See `adapters/yb-wbtc-token` for the full
  * commentary on the pattern.
- *
- * Per-market addresses (from Yield Basis docs):
- *   LT (yb-tBTC)      : 0x771F7290428d830ECd41E980745c327e507823Ec
- *   Gauge             : 0xe83D888FE3213DD3471DE0bC1957E0f94F038483
- *   GaugeController   : 0x1Be14811A3a06F6aF4fA64310a636e1Df04c1c21
- *   Underlying        : 0x18084fbA666a33d37592fA2633fD49a74DD93a88 (tBTC, 18 decimals)
  */
 
 import {

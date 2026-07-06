@@ -4,10 +4,6 @@
  * Replaces the Browserbase scraper with direct calls on Yield Basis's LT
  * ("Leveraged Token") contract.
  *
- * Per-market addresses (from Yield Basis docs):
- *   LT (yb-WBTC) : 0x651D4b8168488FA163D85304662E8278d4c55BAa
- *   Underlying   : 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599 (WBTC, 8 decimals)
- *
  * LT contract behavior we rely on:
  *   - `pricePerShare()` — assets per 1 share, normalized to 18 decimals
  *     regardless of the underlying token's decimals.
