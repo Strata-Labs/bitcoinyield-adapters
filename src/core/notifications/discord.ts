@@ -86,11 +86,21 @@ export class DiscordNotifier implements Notifier {
 
   private async post(webhook: string, content: string): Promise<void> {
     try {
-      await fetch(webhook, {
+      const res = await fetch(webhook, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content }),
       });
+      if (!res.ok) {
+        // A revoked webhook (401/404) or rate limit (429) must be visible in
+        // logs — otherwise paging dies silently on the channel that's supposed
+        // to work even when everything else is down.
+        const body = await res.text().catch(() => "");
+        // eslint-disable-next-line no-console
+        console.error(
+          `[DiscordNotifier] webhook returned HTTP ${res.status}: ${body.slice(0, 200)}`,
+        );
+      }
     } catch (err) {
       // Notifier failures must never break the main pipeline.
       // eslint-disable-next-line no-console
