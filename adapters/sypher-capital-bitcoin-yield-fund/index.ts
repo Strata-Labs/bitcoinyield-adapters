@@ -11,7 +11,9 @@ const REPORTED_APR = 4.35;
 const REPORTED_TVL_USD = 6_000_000; // within the reported $5-10M range
 
 export default defineAdapter({
-  slug: "sypher-capital",
+  // Slug matches the main app's existing protocol key — renaming breaks the
+  // site's metrics lookup and history continuity.
+  slug: "sypher-capital-bitcoin-yield-fund",
   name: "Sypher Capital",
   url: "https://syphercapital.com",
   category: "yield-bearing",
