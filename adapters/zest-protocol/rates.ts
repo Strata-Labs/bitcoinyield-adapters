@@ -38,7 +38,8 @@ export async function getSupplyApy(): Promise<number> {
     const supply = extractField(result, "supply-apy");
     if (supply === undefined) return 0;
     return math.div(parseNumber(supply, 0), 100);
-  } catch {
+  } catch (err) {
+    console.warn(`[zest-protocol] v0-rates read failed, supplyApy=0: ${err}`);
     return 0;
   }
 }
