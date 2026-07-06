@@ -16,7 +16,7 @@ export function requirePositive(
 ): number {
   if (typeof value !== "number") {
     if (typeof value === "string") {
-      const parsed = parseFloat(value);
+      const parsed = strictParse(value);
       if (Number.isFinite(parsed) && parsed > 0) return parsed;
     }
     throw new Error(
@@ -38,7 +38,7 @@ export function requirePositive(
 export function requireNumber(value: unknown, name: string = "value"): number {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
-    const parsed = parseFloat(value);
+    const parsed = strictParse(value);
     if (Number.isFinite(parsed)) return parsed;
   }
   throw new Error(`Expected finite number for ${name}, got ${describe(value)}`);
@@ -51,7 +51,7 @@ export function requireNumber(value: unknown, name: string = "value"): number {
 export function parseNumber(value: unknown, fallback: number = 0): number {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
-    const parsed = parseFloat(value);
+    const parsed = strictParse(value);
     if (Number.isFinite(parsed)) return parsed;
   }
   return fallback;
@@ -64,11 +64,21 @@ export function parseNumber(value: unknown, fallback: number = 0): number {
 export function parsePercent(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
-    const cleaned = value.trim().replace(/%$/, "").trim();
-    const parsed = parseFloat(cleaned);
+    const parsed = strictParse(value.trim().replace(/%$/, ""));
     if (Number.isFinite(parsed)) return parsed;
   }
   throw new Error(`Cannot parse percent from ${describe(value)}`);
+}
+
+/**
+ * Whole-string numeric parse. Unlike parseFloat, "1,234.5" is NaN rather
+ * than 1 — a truncated parse of a comma-grouped value is a 1000x-wrong
+ * number that would otherwise pass every downstream guard.
+ */
+function strictParse(value: string): number {
+  const trimmed = value.trim();
+  if (trimmed === "") return NaN;
+  return Number(trimmed);
 }
 
 function describe(value: unknown): string {
