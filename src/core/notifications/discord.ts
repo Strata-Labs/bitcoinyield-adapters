@@ -28,7 +28,7 @@ export class DiscordNotifier implements Notifier {
     const arrow = alert.direction === "up" ? "⬆" : "⬇";
     const msg =
       `${arrow} SPIKE [${alert.adapter}] ` +
-      `${alert.field}: ${formatNum(alert.oldValue)} → ${formatNum(alert.newValue)} ` +
+      `${alert.field}: ${formatValue(alert.field, alert.oldValue)} → ${formatValue(alert.field, alert.newValue)} ` +
       `(${alert.multiplier.toFixed(2)}x ${alert.direction})`;
     await this.send(this.webhooks.spike ?? this.webhooks.fallback, msg);
   }
@@ -37,7 +37,7 @@ export class DiscordNotifier implements Notifier {
     const direction = alert.bound === "lower" ? "below" : "above";
     const msg =
       `🚫 BOUNDARY [${alert.adapter}] ` +
-      `${alert.field}=${formatNum(alert.value)} ${direction} ${alert.bound} bound ${formatNum(alert.threshold)}`;
+      `${alert.field}=${formatValue(alert.field, alert.value)} ${direction} ${alert.bound} bound ${formatValue(alert.field, alert.threshold)}`;
     await this.send(this.webhooks.outages ?? this.webhooks.fallback, msg);
   }
 
@@ -107,6 +107,11 @@ export class DiscordNotifier implements Notifier {
       console.error("[DiscordNotifier] send failed:", err);
     }
   }
+}
+
+function formatValue(field: "tvlBtc" | "apr", n: number): string {
+  if (field === "apr") return `${n.toFixed(2)}%`;
+  return formatNum(n);
 }
 
 function formatNum(n: number): string {
