@@ -133,16 +133,24 @@ export default defineAdapter({
         ? (pausedCall.result as boolean)
         : undefined;
 
+    // The dormant vault took a realized drawdown, so 30d share growth can go
+    // negative. The boundary check drops apr < 0 as a presumed parse bug,
+    // which starves the row entirely (July 2026 staleness pages). Floor at 0
+    // (the true current payout) and keep the raw figure in metadata.
+    const apr = Math.max(growth.apr, 0);
+
     return [
       {
         symbol: "tBTC",
         tvlBtc,
-        apr: growth.apr,
+        apr,
         metadata: {
           // Vault is dormant (share price frozen), so 0% is the true current
-          // rate — opt out of the pipeline's apr=0 rejection. Remove this
-          // when Acre relaunches so a broken read fails loudly again.
+          // rate — opt out of the pipeline's apr=0 rejection. Remove this and
+          // the apr floor above when Acre relaunches so a broken read fails
+          // loudly again.
           allowZeroApr: true,
+          rawApr30d: growth.apr,
           hasBaseline: growth.hasBaseline,
           vaultAddress: ACRE_VAULT,
           assetAddress,
