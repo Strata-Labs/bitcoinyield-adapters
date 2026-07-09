@@ -1,20 +1,19 @@
-/**
- * Solv BTC+ adapter — single HTTP endpoint returns apy + tvl.
- */
 
 import {
   defineAdapter,
-  http,
   math,
-  prices,
+  http,
+  parseNumber,
   requirePositive,
 } from "@bitcoinyield/adapters";
 
-const SOLV_STATS = "https://rest.sft-api.com/stats/btcplus";
+const SOLV_STATS = "https://api.solvprotocol.org/btcplus/stats";
 
 interface SolvResponse {
-  apy: string;
   tvl: string;
+  tvlUsd: string;
+  baseApy: string;
+  rewardApy: string;
 }
 
 export default defineAdapter({
@@ -25,20 +24,18 @@ export default defineAdapter({
   custody: "multisig",
 
   async fetch() {
-    const [data, btcPrice] = await Promise.all([
-      http.get<SolvResponse>(SOLV_STATS),
-      prices.getBtc(),
-    ]);
+    const data = await http.get<SolvResponse>(SOLV_STATS);
 
-    const apr = requirePositive(data.apy, "apy");
-    const tvlUsd = requirePositive(data.tvl, "tvl");
+    const baseApy = requirePositive(data.baseApy, "baseApy");
+    const rewardApy = parseNumber(data.rewardApy, 0);
 
     return [
       {
         symbol: "BTC+",
-        tvlBtc: math.div(tvlUsd, btcPrice),
-        tvlUsd,
-        apr,
+        tvlBtc: requirePositive(data.tvl, "tvl"),
+        tvlUsd: requirePositive(data.tvlUsd, "tvlUsd"),
+        apr: math.add(baseApy, rewardApy),
+        metadata: { baseApy, rewardApy },
       },
     ];
   },
