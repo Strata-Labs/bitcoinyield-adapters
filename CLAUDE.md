@@ -66,7 +66,7 @@ Reach for these before writing anything custom:
 - `math.{add,sub,mul,div,fromBps,clamp}` — decimal.js underneath. **Never use raw JS arithmetic for money.**
 - `prices.getBtc()` — single source of BTC price (5min cache via CoinGecko). Don't call other price APIs directly.
 - `http.{get,post,getText,graphql}` — has retries + timeouts built in.
-- `scraper.{scrape,openPage,matchNumber}` — Browserbase wrapper for JS-rendered pages. **Last resort only** — always prefer a contract read or protocol API; scrape only when neither exists (currently just mezo-earn and merlin-btc).
+- `scraper.{scrape,openPage,matchNumber}` — Browserbase wrapper for JS-rendered pages. **Last resort only** — always prefer a contract read or protocol API; scrape only when neither exists (currently no adapter scrapes: mezo-earn moved to Mezo's API, merlin-btc to on-chain reads).
 - `chains.ethereum` — viem with fallback transport across 4 public RPCs, multicall, shared `erc20Abi` and `erc4626VaultAbi`.
 - `chains.evm` / `getEvmClient(config)` — env-first client factory for non-mainnet EVM chains (Botanix, Ink). Set `BITCOINYIELD_RPC_<CHAIN>` in production.
 - `chains.stacks` — Hiro REST + `@stacks/transactions` for read-only contract calls.
