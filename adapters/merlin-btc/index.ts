@@ -1,15 +1,72 @@
 /**
- * Merlin BTC Staking adapter — scraper with click interaction.
+ * Merlin BTC Staking adapter — on-chain reads from the staking contract on
+ * Merlin chain (replaces the earlier Browserbase scrape of merlinchain.io,
+ * which kept recording a completed phase's stats instead of the live one).
  *
- * The page has one tab per staking phase and opens on a completed phase, so
- * the live phase's stats are only visible after clicking its tab. The fetch
- * waits for the tabs to render, clicks the "Live" tab, and waits for the
- * stats panel to actually swap before reading.
+ * TVL: getPeriodStakeAmount(currentPeriod()), 18 decimals.
+ * APR: the contract stores apr per period (x10_000), but Merlin sets the
+ *      live period's apr retroactively, so it reads 0 mid-period. Fall back
+ *      to the most recent period whose apr IS set; metadata.aprSource says
+ *      which. The site's "8-21%" banner and "Historical Average: 11%" are
+ *      marketing copy that does not reconcile with the chain (paid APRs so
+ *      far: 17, 3, 1, 1), so we deliberately do not use them.
  */
 
-import { defineAdapter, math, scraper } from "@bitcoinyield/adapters";
+import {
+  defineAdapter,
+  getEvmClient,
+  math,
+  requirePositive,
+  type EvmChainConfig,
+} from "@bitcoinyield/adapters";
 
-const MERLIN_URL = "https://merlinchain.io/stakebtc";
+const STAKING_CONTRACT = "0x78F813aA474167627AcF0A0005F523e0e6D561D0";
+
+const MERLIN: EvmChainConfig = {
+  id: 4200,
+  name: "Merlin",
+  rpcEnv: "BITCOINYIELD_RPC_MERLIN",
+  fallbackRpcs: ["https://rpc.merlinchain.io", "https://merlin.drpc.org"],
+  nativeCurrency: { name: "Bitcoin", symbol: "BTC", decimals: 18 },
+};
+
+const stakingAbi = [
+  {
+    type: "function",
+    name: "currentPeriod",
+    inputs: [],
+    outputs: [{ type: "uint32" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getPeriodStakeAmount",
+    inputs: [{ name: "_period", type: "uint32" }],
+    outputs: [{ type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getPeriodConfig",
+    inputs: [{ name: "_period", type: "uint32" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "startTimestamp", type: "uint32" },
+          { name: "ndays", type: "uint32" },
+          { name: "endTimestamp", type: "uint32" },
+          { name: "apr", type: "uint32" },
+          { name: "stakeCap", type: "uint256" },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+] as const;
+
+// The contract stores apr scaled by 10_000 (170000 = 17%).
+const APR_SCALE = 10_000;
 
 export default defineAdapter({
   slug: "merlin-btc",
@@ -17,103 +74,68 @@ export default defineAdapter({
   url: "https://merlinchain.io",
   category: "staking",
   custody: "multisig",
+  requires: { rpc: ["merlin"] },
 
   async fetch() {
-    const session = await scraper.openPage(MERLIN_URL);
-    try {
-      const STAKE_RE = /All Users[''"]?\s*Stake[\s\n]*([\d,.]+)\s*BTC/i;
+    const client = getEvmClient(MERLIN);
 
-      // The page opens on a completed phase's stats; the live phase is a
-      // separate tab. Both render client-side, and locator.isVisible() does
-      // not wait, so clicking before the tabs exist silently skips the click
-      // and reads stale completed-phase figures (July 2026: 76 BTC reported
-      // while the live Phase 5 held ~10). Wait for the stats and the live
-      // tab to render before touching anything; a page with no live tab
-      // fails loudly on purpose.
-      await session.waitForText(STAKE_RE);
-      await session.waitForText(/Staking Live/i);
-      const preClickStake = scraper.matchNumber(
-        await session.getText(),
-        STAKE_RE,
-      );
+    const period = await client.readContract({
+      address: STAKING_CONTRACT,
+      abi: stakingAbi,
+      functionName: "currentPeriod",
+    });
 
-      // Click via the DOM, not Playwright's locator: locator.click() flakes
-      // in Browserbase (hit-testing against the horizontally scrolling tab
-      // row), while a JS-dispatched click swaps the panel reliably.
-      await session.page.evaluate(() => {
-        const node = document.evaluate(
-          "//*[contains(text(), 'Live')]",
-          document,
-          null,
-          XPathResult.FIRST_ORDERED_NODE_TYPE,
-          null,
-        ).singleNodeValue;
-        (node as HTMLElement | null)?.click();
-      });
+    const [stakeRaw, config] = await Promise.all([
+      client.readContract({
+        address: STAKING_CONTRACT,
+        abi: stakingAbi,
+        functionName: "getPeriodStakeAmount",
+        args: [period],
+      }),
+      client.readContract({
+        address: STAKING_CONTRACT,
+        abi: stakingAbi,
+        functionName: "getPeriodConfig",
+        args: [period],
+      }),
+    ]);
 
-      // The tab swap is client-side, no navigation. Poll until the stake
-      // figure moves off the pre-click (completed phase) value, and refuse
-      // to record if it never does: the stale figure looks plausible, so
-      // failing loudly beats silently storing the wrong phase again.
-      const deadline = Date.now() + 10_000;
-      let text = await session.getText();
-      while (
-        scraper.matchNumber(text, STAKE_RE) === preClickStake &&
-        Date.now() < deadline
-      ) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        text = await session.getText();
-      }
-      if (scraper.matchNumber(text, STAKE_RE) === preClickStake) {
-        throw new Error(
-          `Merlin live tab did not swap in (stake still ${preClickStake}). ` +
-            `Snippet: ${text.slice(0, 300)}`,
-        );
-      }
+    const tvlBtc = requirePositive(math.fromUnits(stakeRaw, 18), "stakeBtc");
 
-      const stakeBtc = scraper.matchNumber(text, STAKE_RE) ?? 0;
-      // The page has cycled through three APR formats: a bare "APR 17%"
-      // label (current), "Historical Average: X%", and a "low - high %"
-      // range. Try newest first, keep the older two as fallbacks.
-      const labelApr = scraper.matchNumber(text, /\bAPR[\s\n]*([\d.]+)\s*%/i);
-      const histApr = scraper.matchNumber(
-        text,
-        /Historical Average[:\s]*([\d.]+)\s*%/i,
-      );
-      const aprLow =
-        scraper.matchNumber(text, /([\d.]+)\s*[-–]\s*[\d.]+\s*%/i) ?? 0;
-      const aprHigh =
-        scraper.matchNumber(text, /[\d.]+\s*[-–]\s*([\d.]+)\s*%/i) ?? 0;
-
-      const apr =
-        labelApr ??
-        histApr ??
-        (aprLow > 0 && aprHigh > 0
-          ? math.div(math.add(aprLow, aprHigh), 2)
-          : 0);
-
-      // APR never legitimately reads 0 on this page — treat it as a parse
-      // miss so Inngest retries instead of silently storing a bad row.
-      if (apr === 0 || stakeBtc === 0) {
-        throw new Error(
-          `Merlin scrape parse miss (apr=${apr}, stakeBtc=${stakeBtc}). ` +
-            `Snippet: ${text.slice(0, 500)}`,
-        );
-      }
-
-      return [
-        {
-          symbol: "BTC",
-          tvlBtc: stakeBtc,
-          apr,
-          metadata: {
-            aprSource: labelApr !== null ? "apr-label" : "fallback",
-            sessionId: session.sessionId,
-          },
-        },
-      ];
-    } finally {
-      await session.close();
+    // Walk back to the newest period with a set apr when the live one is 0.
+    let aprRaw = config.apr;
+    let aprPeriod = period;
+    while (aprRaw === 0 && aprPeriod > 0) {
+      aprPeriod--;
+      aprRaw = (
+        await client.readContract({
+          address: STAKING_CONTRACT,
+          abi: stakingAbi,
+          functionName: "getPeriodConfig",
+          args: [aprPeriod],
+        })
+      ).apr;
     }
+    const apr = requirePositive(math.div(aprRaw, APR_SCALE), "apr");
+
+    return [
+      {
+        symbol: "BTC",
+        tvlBtc,
+        apr,
+        metadata: {
+          stakingContract: STAKING_CONTRACT,
+          chainId: MERLIN.id,
+          period,
+          periodStart: config.startTimestamp,
+          periodEnd: config.endTimestamp,
+          stakeCapBtc: math.fromUnits(config.stakeCap, 18),
+          aprSource:
+            aprPeriod === period
+              ? "current-period"
+              : `last-set-period-${aprPeriod}`,
+        },
+      },
+    ];
   },
 });
