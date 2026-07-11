@@ -4,7 +4,7 @@
  *
  * GET api.mezo.org/locks/stats?type=vebtc returns the veBTC lock totals and
  * the previous epoch's chain fees. The endpoint answers plain requests with
- * a 500 unless browser-ish Origin/Referer headers are sent.
+ * a 500 unless Origin/Referer headers are sent.
  *
  * TVL: totalLocked (18 decimals) is BTC only. The page's headline TVL also
  *      includes locked MEZO (type=vemezo, ~$4M), which the old scrape was
@@ -24,10 +24,12 @@ import {
 
 const STATS_URL = "https://api.mezo.org/locks/stats?type=vebtc";
 
-// Without these the API returns a blanket 500 instead of JSON.
-const BROWSER_HEADERS = {
+// The API's filter answers a blanket 500 unless Origin/Referer are present.
+// The User-Agent identifies us honestly with a contact URL so Mezo can see
+// who is calling and reach out; no browser impersonation is needed.
+const API_HEADERS = {
   "User-Agent":
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+    "BitcoinYieldAdapters/1.0 (+https://github.com/Strata-Labs/bitcoinyield-adapters)",
   Accept: "application/json",
   Origin: "https://mezo.org",
   Referer: "https://mezo.org/",
@@ -55,7 +57,7 @@ export default defineAdapter({
 
   async fetch() {
     const res = await http.get<LockStats>(STATS_URL, {
-      headers: BROWSER_HEADERS,
+      headers: API_HEADERS,
     });
     if (!res.success) {
       throw new Error("mezo locks/stats returned success=false");
