@@ -57,7 +57,7 @@ For every adapter run: `fetch → normalize → boundaries → spike-guard → P
 
 - **normalize** — requires `symbol`, `tvlBtc`, `apr`; derives `tvlUsd` from `btcPrice` if not given
 - **boundaries** — drops rows outside `tvlBtc 0.0001..5_000_000` or `apr 0..1000`
-- **spike-guard** — drops rows that moved >2x in either direction within 5h (vs DefiLlama's one-way 5x)
+- **spike-guard** — two bands, both directions, 5h window: >=3x alerts Discord but keeps the row; >=5x alerts and drops it (DefiLlama comparison: theirs is a one-way 5x drop)
 
 ### Toolbox (use these — don't roll your own)
 

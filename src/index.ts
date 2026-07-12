@@ -47,7 +47,8 @@ export {
   applyBoundaries,
   spikeGuard,
   BOUNDARIES,
-  SPIKE_THRESHOLD,
+  SPIKE_ALERT_THRESHOLD,
+  SPIKE_DROP_THRESHOLD,
   SPIKE_WINDOW_MS,
 } from "./core/pipeline/index.js";
 
