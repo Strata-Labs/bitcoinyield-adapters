@@ -1,10 +1,17 @@
 import type { MetricRow, Notifier } from "../types.js";
 
 /**
- * Bidirectional 2x-in-5h spike guard. Catches both inflations and crashes
- * (one-way guards miss data-quality regressions in the down direction).
+ * Bidirectional two-band spike guard, 5h window. Catches both inflations
+ * and crashes (one-way guards miss data-quality regressions down).
+ *
+ * Alerting is decoupled from dropping. Low-base APRs legitimately double
+ * (July 2026: yb-tbtc went 1.74% -> 3.5% and the old single 2x threshold
+ * blocked it into a staleness page), while the bug class that must never
+ * reach the DB (unit confusion, wrong-field parses) lands 10x+ off. So:
+ * >= 3x pages Discord but keeps the row; >= 5x pages AND drops.
  */
-export const SPIKE_THRESHOLD = 2;
+export const SPIKE_ALERT_THRESHOLD = 3;
+export const SPIKE_DROP_THRESHOLD = 5;
 export const SPIKE_WINDOW_MS = 5 * 60 * 60 * 1000;
 
 export interface SpikeGuardResult {
@@ -43,6 +50,7 @@ export async function spikeGuard(
       continue;
     }
 
+    const shouldDrop = spike.multiplier >= SPIKE_DROP_THRESHOLD;
     const oldValue = spike.field === "tvlBtc" ? previous.tvlBtc : previous.apr;
     const newValue = spike.field === "tvlBtc" ? row.tvlBtc : row.apr;
     await notifier.spike({
@@ -52,11 +60,17 @@ export async function spikeGuard(
       newValue,
       multiplier: spike.multiplier,
       direction: spike.direction,
+      dropped: shouldDrop,
     });
-    dropped.push({
-      row,
-      reason: `spike-guard: ${spike.field} ${oldValue} -> ${newValue} (${spike.multiplier.toFixed(2)}x ${spike.direction})`,
-    });
+
+    if (shouldDrop) {
+      dropped.push({
+        row,
+        reason: `spike-guard: ${spike.field} ${oldValue} -> ${newValue} (${spike.multiplier.toFixed(2)}x ${spike.direction})`,
+      });
+    } else {
+      kept.push(row);
+    }
   }
 
   return { kept, dropped };
@@ -67,10 +81,10 @@ function checkRatio(
   oldValue: number,
 ): { multiplier: number; direction: "up" | "down" } | null {
   if (oldValue <= 0 || newValue <= 0) return null;
-  if (newValue >= oldValue * SPIKE_THRESHOLD) {
+  if (newValue >= oldValue * SPIKE_ALERT_THRESHOLD) {
     return { multiplier: newValue / oldValue, direction: "up" };
   }
-  if (oldValue >= newValue * SPIKE_THRESHOLD) {
+  if (oldValue >= newValue * SPIKE_ALERT_THRESHOLD) {
     return { multiplier: oldValue / newValue, direction: "down" };
   }
   return null;

@@ -72,6 +72,8 @@ export interface SpikeAlert {
   newValue: number;
   multiplier: number;
   direction: "up" | "down";
+  /** Whether the row was dropped (>= drop threshold) or kept (alert-only band). */
+  dropped: boolean;
 }
 
 export interface BoundaryAlert {

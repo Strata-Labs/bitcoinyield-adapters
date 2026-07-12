@@ -26,10 +26,11 @@ export class DiscordNotifier implements Notifier {
 
   async spike(alert: SpikeAlert): Promise<void> {
     const arrow = alert.direction === "up" ? "⬆" : "⬇";
+    const outcome = alert.dropped ? "row dropped" : "row kept";
     const msg =
       `${arrow} SPIKE [${alert.adapter}] ` +
       `${alert.field}: ${formatValue(alert.field, alert.oldValue)} → ${formatValue(alert.field, alert.newValue)} ` +
-      `(${alert.multiplier.toFixed(2)}x ${alert.direction})`;
+      `(${alert.multiplier.toFixed(2)}x ${alert.direction}, ${outcome})`;
     await this.send(this.webhooks.spike ?? this.webhooks.fallback, msg);
   }
 
