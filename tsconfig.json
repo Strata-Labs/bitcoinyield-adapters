@@ -24,6 +24,6 @@
       "@bitcoinyield/adapters/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*", "adapters/**/*", "api/**/*"],
+  "include": ["src/**/*", "adapters/**/*", "api/**/*", "tests/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
