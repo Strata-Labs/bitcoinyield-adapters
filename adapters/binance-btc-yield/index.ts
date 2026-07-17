@@ -1,17 +1,18 @@
 /**
  * Binance BTC Yield (BTCY) — custodial fund-style product on Binance Earn.
  *
- * Reads the public statistics endpoint the product page uses (keyless, not
- * behind the site's WAF): daily rows of nav + btcTvl.
+ * Reads the public bapi endpoints the product page uses (keyless, not
+ * behind the site's WAF).
  *
- * TVL: latest daily row's btcTvl.
- * APR: 14-day annualized NAV growth, computed from the series. The overview
- *      endpoint's apr14d headline is NOT used: Binance nulls it whenever the
- *      figure would be unflattering (observed 2026-07-11 with NAV below 1.0),
- *      which took the adapter down. When present, apr14d matches this
- *      computation to rounding. NAV can genuinely decline, so a negative
- *      window is floored at 0 with the raw figure kept in metadata,
- *      mirroring acre-mezo's dormant handling.
+ * TVL: latest daily statistics row's btcTvl.
+ * APR: Binance's published apr14d headline when present, so the site
+ *      matches what users see on Binance's page. Their figure is gross
+ *      strategy yield and excludes NAV drawdowns; the net 14-day NAV
+ *      return (which can be lower or negative, e.g. July 2026 drawdown)
+ *      is always computed from the statistics series and recorded as
+ *      metadata.navApr14d. When Binance nulls apr14d (they do whenever
+ *      the headline would be unflattering, which took the adapter down
+ *      on 2026-07-11), fall back to that NAV figure floored at 0.
  */
 
 import { defineAdapter, http, math, requirePositive } from "@bitcoinyield/adapters";
@@ -22,17 +23,28 @@ interface BtcyEnvelope<T> {
   data: T;
 }
 
+interface BtcyOverview {
+  apr14d: string | null;
+  currentNav: string | null;
+}
+
 interface BtcyStatRow {
   bizDate: string;
   nav: string;
   btcTvl: string;
 }
 
-const STATISTICS_URL =
-  "https://www.binance.com/bapi/earn/v1/public/earn/btcy/project/statistics";
+const BAPI = "https://www.binance.com/bapi/earn/v1/public/earn/btcy/project";
 
 const APR_WINDOW_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+function unwrap<T>(res: BtcyEnvelope<T>, endpoint: string): T {
+  if (!res.success || res.code !== "000000") {
+    throw new Error(`binance btcy ${endpoint} returned code ${res.code}`);
+  }
+  return res.data;
+}
 
 export default defineAdapter({
   slug: "binance-btc-yield",
@@ -47,20 +59,30 @@ export default defineAdapter({
     const end = Date.now();
     const start = end - (APR_WINDOW_DAYS + 3) * DAY_MS;
 
-    const res = await http.get<BtcyEnvelope<BtcyStatRow[]>>(
-      `${STATISTICS_URL}?startTime=${start}&endTime=${end}`,
-    );
-    if (!res.success || res.code !== "000000") {
-      throw new Error(`binance btcy statistics returned code ${res.code}`);
-    }
-    const rows = res.data;
+    // The overview call only carries the headline; statistics is the source
+    // of record. Overview failing must not take TVL reporting down with it.
+    const [overviewResult, statsRes] = await Promise.all([
+      http
+        .get<BtcyEnvelope<BtcyOverview>>(`${BAPI}/overview`)
+        .then((res) => unwrap(res, "overview"))
+        .catch((err) => {
+          console.warn(`[binance-btc-yield] overview unavailable: ${err}`);
+          return null;
+        }),
+      http.get<BtcyEnvelope<BtcyStatRow[]>>(
+        `${BAPI}/statistics?startTime=${start}&endTime=${end}`,
+      ),
+    ]);
+
+    const rows = unwrap(statsRes, "statistics");
     const latest = rows.at(-1);
     if (!latest) throw new Error("binance btcy statistics returned no rows");
 
     const tvlBtc = requirePositive(latest.btcTvl, "btcTvl");
     const navNow = requirePositive(latest.nav, "nav");
 
-    // Row closest to APR_WINDOW_DAYS before the latest row.
+    // Net 14d NAV return, always computed: it is the fallback APR and the
+    // honest cross-reference against Binance's gross headline.
     const targetDate = Number(latest.bizDate) - APR_WINDOW_DAYS * DAY_MS;
     const baseline = rows.reduce((best, row) =>
       Math.abs(Number(row.bizDate) - targetDate) <
@@ -76,16 +98,17 @@ export default defineAdapter({
       );
     }
     const navThen = requirePositive(baseline.nav, "baseline nav");
-
-    // Annualized NAV growth over the window; reproduces Binance's apr14d
-    // headline when they publish one. The fund can lose money, so floor at
-    // 0 (the pipeline treats negative apr as a parse bug) and keep the raw
-    // figure visible.
-    const rawApr = math.mul(
+    const navApr = math.mul(
       math.mul(math.sub(math.div(navNow, navThen), 1), 365 / windowDays),
       100,
     );
-    const apr = Math.max(rawApr, 0);
+
+    // apr14d arrives as a fraction string (0.0022 = 0.22%) or null.
+    const reported = overviewResult?.apr14d
+      ? parseFloat(overviewResult.apr14d)
+      : null;
+    const useReported = reported !== null && reported > 0;
+    const apr = useReported ? math.mul(reported, 100) : Math.max(navApr, 0);
 
     return [
       {
@@ -93,12 +116,13 @@ export default defineAdapter({
         tvlBtc,
         apr,
         metadata: {
+          // Only relevant when the fallback floors a negative NAV window.
           allowZeroApr: true,
-          rawApr14d: rawApr,
+          aprSource: useReported ? "binance-apr14d" : "nav-series-fallback",
+          navApr14d: navApr,
           nav: navNow,
           nav14dAgo: navThen,
           windowDays,
-          aprSource: "nav-series",
           tvlAsOf: Number(latest.bizDate),
         },
       },
