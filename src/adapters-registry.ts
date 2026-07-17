@@ -4,7 +4,6 @@
 
 import type { Adapter } from './core/types.js'
 
-import acreMezo from '../adapters/acre-mezo/index.js'
 import amboss from '../adapters/amboss/index.js'
 import ambossMagma from '../adapters/amboss-magma/index.js'
 import babylon from '../adapters/babylon/index.js'
@@ -33,7 +32,6 @@ import ybWbtcYieldbearing from '../adapters/yb-wbtc-yieldbearing/index.js'
 import zestProtocol from '../adapters/zest-protocol/index.js'
 
 export const adapters: Record<string, Adapter> = {
-  "acre-mezo": acreMezo,
   amboss,
   "amboss-magma": ambossMagma,
   babylon,

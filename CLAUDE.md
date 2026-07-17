@@ -113,7 +113,7 @@ Discord webhook (optional, for operational alerts):
 
 - **Lombard multi-chain LBTC** — intentionally reads Ethereum supply only (~$650M); the protocol-wide backing (~$960M) requires summing BTC balances across Lombard's `/api/v1/addresses` custody list (needs a Bitcoin indexer). Documented in the adapter README.
 - **`adapterStatus` collection** — needs to be added to the main app before status reporting can go live (see INTEGRATION.md).
-- **acre-mezo** — vault is dormant (share price frozen, one-off ~0.9% drawdown); the adapter sets `metadata.allowZeroApr` so the pipeline accepts its 0% rows. Remove the flag when Acre relaunches.
+- **acre-mezo** — disabled 2026-07-13: the vault's on-chain accounting is bricked; `totalAssets()` and `convertToAssets()` both revert with "DF: feed is unhealthy" (dormant project, price feed updater stopped, heartbeat lapsed). Re-enable when the reads work again; the adapter also carries an apr floor + `allowZeroApr` for the dormant period, remove those when Acre relaunches properly.
 - **zenrock-zenbtc** — disabled 2026-07-06: API reports `yieldAPY: 0` with the exchange rate frozen since ~2026-06-21. Re-enable when Zenrock resumes paying yield.
 
 ## When in doubt
