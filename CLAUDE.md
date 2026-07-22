@@ -77,6 +77,7 @@ Reach for these before writing anything custom:
 ### Adapter style
 
 - Keep adapter files small (30-60 LOC). Split into a folder if longer.
+- Adapters are self-contained, with one sanctioned exception: a protocol family with several near-identical adapters may share a helper folder under `adapters/<protocol>/` (no `index.ts`, so it never registers as an adapter) — see `adapters/yieldbasis/token-adapter.ts`. Such helpers must deep-import from `src/core/*`, not `@bitcoinyield/adapters` — the entrypoint re-exports the registry, which imports the adapters that import the helper, and the cycle crashes module init. Anything useful beyond one protocol belongs in `src/core/utils/`.
 - Declare external secret needs via `requires.secrets`. They appear on `ctx.env`.
 - Don't hardcode addresses or API URLs at module top — put constants near where they're used.
 - Match existing `adapters/*` for structure before inventing your own pattern.
