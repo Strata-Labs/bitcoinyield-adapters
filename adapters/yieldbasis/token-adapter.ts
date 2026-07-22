@@ -11,6 +11,10 @@
 
 import type { Address } from "viem";
 
+// Deep imports on purpose: "@bitcoinyield/adapters" re-exports the adapter
+// registry, and the registry imports the yb-*-token adapters that import
+// this helper. Going through the entrypoint here closes that cycle and
+// crashes module init (TDZ on productionYieldBasisTokenDependencies).
 import { defineAdapter } from "../../src/core/defineAdapter.js";
 import type { Adapter } from "../../src/core/types.js";
 import * as ethereum from "../../src/core/utils/chains/ethereum.js";
@@ -143,10 +147,9 @@ export function calculateYieldBasisTokenMetrics({
   const ybPerYear = math.div(
     math.mul(ybEmitted, SECONDS_PER_YEAR),
     EMISSIONS_WINDOW_SECONDS,
-    undefined,
   );
   const emissionsApr = math.mul(
-    math.div(math.mul(ybPerYear, ybPriceUsd), stakedTvlUsd, undefined),
+    math.div(math.mul(ybPerYear, ybPriceUsd), stakedTvlUsd),
     100,
   );
 
