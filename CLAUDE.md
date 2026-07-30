@@ -70,6 +70,7 @@ Reach for these before writing anything custom:
 - `chains.ethereum` — viem with fallback transport across 4 public RPCs, multicall, shared `erc20Abi` and `erc4626VaultAbi`.
 - `chains.evm` / `getEvmClient(config)` — env-first client factory for non-mainnet EVM chains (Botanix, Ink). Set `BITCOINYIELD_RPC_<CHAIN>` in production.
 - `chains.stacks` — Hiro REST + `@stacks/transactions` for read-only contract calls.
+- `cms.getManualMetrics(ctx, slug)` — for products with no API or on-chain source (Sypher, Coinbase fund): reads marketer-maintained APR/TVL from the main app's CMS (`GET /api/manual-metrics/:slug`). Adapter must declare `requires.secrets: ["API_URL", "ADAPTER_KEY"]`. **Never hardcode reported figures in an adapter** — they go stale and silently overwrite CMS edits.
 - `requirePositive(value, name)` — **throws loudly if zero/negative/NaN**. Use this aggressively. Silent zeros are the bug we built this framework to prevent.
 
 ## Conventions

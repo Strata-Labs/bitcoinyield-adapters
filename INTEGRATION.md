@@ -84,6 +84,29 @@ latest state per slug is enough for now.
 
 Upsert by `slug` (one row per adapter, latest state wins). Respond `200`.
 
+### 4. `GET /api/manual-metrics/:slug`
+
+Serves manually-maintained APR/TVL for CMS-sourced adapters (products with
+no API or on-chain source — currently Sypher Capital and Coinbase BTC Yield
+Fund). Must read the marketer-edited CMS collection (`yieldProducts`), NOT
+`protocolMetrics` — reading the latter back would create a feedback loop
+that echoes the adapter's own output.
+
+```jsonc
+// 200 response
+{
+  "slug": "sypher-capital-bitcoin-yield-fund",
+  "aprPercent": 4.35, // percentage: 4.35 = 4.35%
+  "tvlUsd": 6000000, // null when the product doesn't disclose TVL
+  "updatedAt": "2026-06-15T20:06:30.000Z", // last CMS edit (ISO 8601)
+}
+// 404 when no CMS product matches the slug
+```
+
+The adapter service fetches this hourly, validates it (`requirePositive`,
+boundaries, spike guard — a fat-fingered CMS edit trips the guard), and
+POSTs the resulting row back via `POST /api/adapter-metrics`.
+
 ## Production environment (this service, on Vercel)
 
 | Variable                                                               | Purpose                                                                                     |
