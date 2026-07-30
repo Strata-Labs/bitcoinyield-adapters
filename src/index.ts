@@ -21,6 +21,8 @@ export type {
 export * as math from "./core/utils/math.js";
 export * as prices from "./core/utils/prices.js";
 export * as http from "./core/utils/http.js";
+export * as cms from "./core/utils/cms.js";
+export type { ManualMetrics } from "./core/utils/cms.js";
 export * as scraper from "./core/utils/scraper.js";
 export * as ethereum from "./core/utils/chains/ethereum.js";
 export * as stacks from "./core/utils/chains/stacks.js";

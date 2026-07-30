@@ -1,35 +1,45 @@
 /**
- * Sypher Capital — institutional fund, no public API.
- * Values updated manually from monthly reports.
- *
- * Last updated: 2026-07-06
+ * Sypher Capital — institutional fund, no public API. APR/TVL are maintained
+ * in the main app's CMS from monthly reports: edit there, no deploy.
  */
 
-import { defineAdapter, math, prices } from "@bitcoinyield/adapters";
+import {
+  cms,
+  defineAdapter,
+  math,
+  prices,
+  requirePositive,
+} from "@bitcoinyield/adapters";
 
-const REPORTED_APR = 4.35;
-const REPORTED_TVL_USD = 6_000_000; // within the reported $5-10M range
+// Must equal the CMS yieldProducts slug AND the main app's protocol key —
+// renaming breaks the metrics lookup, history continuity, and the CMS read.
+const SLUG = "sypher-capital-bitcoin-yield-fund";
 
 export default defineAdapter({
-  // Slug matches the main app's existing protocol key — renaming breaks the
-  // site's metrics lookup and history continuity.
-  slug: "sypher-capital-bitcoin-yield-fund",
+  slug: SLUG,
   name: "Sypher Capital",
   url: "https://syphercapital.com",
   category: "yield-bearing",
   custody: "custodial",
+  requires: { secrets: ["API_URL", "ADAPTER_KEY"] },
 
-  async fetch() {
-    const btcPrice = await prices.getBtc();
-    const tvlBtc = math.div(REPORTED_TVL_USD, btcPrice);
+  async fetch(ctx) {
+    const manual = await cms.getManualMetrics(ctx, SLUG);
+    const apr = requirePositive(manual.aprPercent, "cms.aprPercent");
+    const tvlUsd = requirePositive(manual.tvlUsd, "cms.tvlUsd");
+    const tvlBtc = math.div(tvlUsd, await prices.getBtc());
 
     return [
       {
         symbol: "BTC",
         tvlBtc,
-        tvlUsd: REPORTED_TVL_USD,
-        apr: REPORTED_APR,
-        metadata: { source: "monthly-report", reportedAt: "2026-07-06" },
+        tvlUsd,
+        apr,
+        metadata: {
+          source: "cms",
+          sourceDetail: "monthly-report",
+          cmsUpdatedAt: manual.updatedAt,
+        },
       },
     ];
   },
