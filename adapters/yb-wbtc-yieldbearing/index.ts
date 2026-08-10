@@ -103,8 +103,10 @@ export default defineAdapter({
       {
         symbol: "yb-WBTC",
         tvlBtc,
-        apr: growth.apr,
+        apr: Math.max(growth.apr, 0),
         metadata: {
+          ...(growth.apr < 0 && { allowZeroApr: true }),
+          rawApr30d: growth.apr,
           ltAddress: LT,
           assetAddress: ASSET_ADDRESS,
           assetDecimals: ASSET_DECIMALS,
