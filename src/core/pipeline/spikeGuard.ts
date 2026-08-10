@@ -80,12 +80,12 @@ function checkRatio(
   newValue: number,
   oldValue: number,
 ): { multiplier: number; direction: "up" | "down" } | null {
-  if (oldValue <= 0 || newValue <= 0) return null;
-  if (newValue >= oldValue * SPIKE_ALERT_THRESHOLD) {
-    return { multiplier: newValue / oldValue, direction: "up" };
-  }
-  if (oldValue >= newValue * SPIKE_ALERT_THRESHOLD) {
-    return { multiplier: oldValue / newValue, direction: "down" };
-  }
-  return null;
+  if (newValue === 0 || oldValue === 0) return null;
+  if (newValue > 0 !== oldValue > 0) return null;
+
+  const ratio = Math.abs(newValue) / Math.abs(oldValue);
+  const multiplier = ratio >= 1 ? ratio : 1 / ratio;
+  if (multiplier < SPIKE_ALERT_THRESHOLD) return null;
+
+  return { multiplier, direction: newValue > oldValue ? "up" : "down" };
 }

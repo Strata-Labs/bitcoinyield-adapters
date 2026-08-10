@@ -88,7 +88,7 @@ The CLI ships with `NoopStorage` and no DB driver. **It is physically impossible
 | --- | --------------- | ---------------------------------------------------------------------------------------------- |
 | 1   | Normalize types | string → number, validate required fields, derive `tvlUsd` from `tvlBtc × btcPrice` if missing |
 | 2   | Boundaries      | Drop rows with `tvlBtc` outside `[0.0001, 5,000,000]` or `apr` outside `[0, 1000]%`            |
-| 3   | Spike guard     | Bidirectional 2x-in-5h check — drop rows that look like data regressions, alert on Discord     |
+| 3   | Spike guard     | Bidirectional 5h check on same-sign moves — alert at 3x, drop at 5x                            |
 | 4   | Persist         | Atomic insert via the configured Storage backend                                               |
 | 5   | Run stats       | Record success/error/duration for adapter health monitoring                                    |
 

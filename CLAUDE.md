@@ -56,7 +56,7 @@ Adapters are auto-discovered. Adding a new file in `adapters/` and running `pnpm
 For every adapter run: `fetch → normalize → boundaries → spike-guard → POST to main app`.
 
 - **normalize** — requires `symbol`, `tvlBtc`, `apr`; derives `tvlUsd` from `btcPrice` if not given
-- **boundaries** — drops rows outside `tvlBtc 0.0001..5_000_000` or `apr 0..1000`
+- **boundaries** — drops rows outside `tvlBtc 0.0001..5_000_000` or `apr 0..1000`. An adapter whose measure can dip below zero floors it in the adapter and records the raw figure in metadata (see acre-mezo, yb-\*-yieldbearing) — the pipeline itself never stores a negative apr.
 - **spike-guard** — two bands, both directions, 5h window: >=3x alerts Discord but keeps the row; >=5x alerts and drops it (DefiLlama comparison: theirs is a one-way 5x drop)
 
 ### Toolbox (use these — don't roll your own)
@@ -117,6 +117,7 @@ Discord webhook (optional, for operational alerts):
 - **`adapterStatus` collection** — needs to be added to the main app before status reporting can go live (see INTEGRATION.md).
 - **acre-mezo** — disabled 2026-07-13: the vault's on-chain accounting is bricked; `totalAssets()` and `convertToAssets()` both revert with "DF: feed is unhealthy" (dormant project, price feed updater stopped, heartbeat lapsed). Re-enable when the reads work again; the adapter also carries an apr floor + `allowZeroApr` for the dormant period, remove those when Acre relaunches properly.
 - **zenrock-zenbtc** — disabled 2026-07-06: API reports `yieldAPY: 0` with the exchange rate frozen since ~2026-06-21. Re-enable when Zenrock resumes paying yield.
+- **yb-\*-yieldbearing apr floored at 0** — since 2026-08 the WBTC vault's 30d PPS growth has been negative (rebalancing costs outran trading fees; Yield Basis documents this as "PPS drag"). The adapters floor apr at 0 and record the true figure in `metadata.rawApr30d`; `allowZeroApr` is set only when the raw figure is negative, so a genuinely frozen feed still fails loudly. Nothing pages while a drawdown lasts — the floored 0 plus `rawApr30d` is the only signal, so check the metadata before assuming a yieldbasis 0% means "flat".
 
 ## When in doubt
 
