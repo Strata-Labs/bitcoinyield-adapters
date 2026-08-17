@@ -1,6 +1,11 @@
 /**
  * Botanix adapter — stBTC ERC-4626 vault on Botanix L2 (chain id 3637).
  *
+ * RETIRED 2026-08-17: Botanix Labs wound down the network (announced
+ * 2026-06-10, withdrawals closed 2026-07-09, last block 6575567 on
+ * 2026-07-31). The chain and all its RPC endpoints are permanently gone —
+ * do not re-enable.
+ *
  * APR is realized 30-day share-price growth (not the forward-looking
  * theoretical yield the previous blend.money-scraping version reported),
  * matching how the other vault adapters report yield.
