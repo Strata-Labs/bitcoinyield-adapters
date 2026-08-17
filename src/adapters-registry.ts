@@ -8,7 +8,6 @@ import amboss from '../adapters/amboss/index.js'
 import ambossMagma from '../adapters/amboss-magma/index.js'
 import babylon from '../adapters/babylon/index.js'
 import binanceBtcYield from '../adapters/binance-btc-yield/index.js'
-import botanix from '../adapters/botanix/index.js'
 import coinbaseBitcoinYieldFund from '../adapters/coinbase-bitcoin-yield-fund/index.js'
 import hermeticaHbtc from '../adapters/hermetica-hbtc/index.js'
 import krakenBitcoinEarn from '../adapters/kraken-bitcoin-earn/index.js'
@@ -36,7 +35,6 @@ export const adapters: Record<string, Adapter> = {
   "amboss-magma": ambossMagma,
   babylon,
   "binance-btc-yield": binanceBtcYield,
-  botanix,
   "coinbase-bitcoin-yield-fund": coinbaseBitcoinYieldFund,
   "hermetica-hbtc": hermeticaHbtc,
   "kraken-bitcoin-earn": krakenBitcoinEarn,
