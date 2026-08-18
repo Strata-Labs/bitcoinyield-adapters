@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
+import { config as wBtcConfig } from "../adapters/yb-wbtc-yieldbearing/index.js";
+import {
+  createYieldBasisYieldBearingAdapter,
+  type YieldBasisYieldBearingDependencies,
+} from "../adapters/yieldbasis/yield-bearing-adapter.js";
 import {
   applyBoundaries,
   BOUNDARIES,
@@ -13,12 +17,6 @@ import type {
   MetricRow,
   Notifier,
 } from "../src/core/types.js";
-
-const SLUGS = [
-  "yb-wbtc-yieldbearing",
-  "yb-cbbtc-yieldbearing",
-  "yb-tbtc-yieldbearing",
-];
 
 function row(overrides: Partial<MetricRow> = {}): MetricRow {
   return {
@@ -103,18 +101,28 @@ test("a zero apr without allowZeroApr still fails loudly", () => {
   );
 });
 
-test("every yieldbasis yield-bearing adapter floors apr and records the raw figure", async () => {
-  for (const slug of SLUGS) {
-    const src = await readFile(
-      new URL(`../adapters/${slug}/index.ts`, import.meta.url),
-      "utf8",
-    );
-    assert.match(src, /Math\.max\(growth\.apr, 0\)/, `${slug} lost the floor`);
-    assert.match(src, /rawApr30d: growth\.apr/, `${slug} lost the raw figure`);
-    assert.match(
-      src,
-      /growth\.apr < 0 && \{ allowZeroApr: true \}/,
-      `${slug} must only allow zero when the raw figure is negative`,
-    );
-  }
+test("yieldbasis yield-bearing adapters floor a negative official APY", async () => {
+  const oneEther = 10n ** 18n;
+  const dependencies: YieldBasisYieldBearingDependencies = {
+    async readBalances() {
+      return [20n * oneEther, 8n * oneEther];
+    },
+    async readSharePrice() {
+      return oneEther;
+    },
+    async getInceptionApy(marketId) {
+      return {
+        marketId,
+        bucketStart: 1_787_011_200,
+        apyRaw: "-3700000000000000",
+        sourceTimestamp: "2026-08-18T17:30:46.208Z",
+      };
+    },
+  };
+
+  const adapter = createYieldBasisYieldBearingAdapter(wBtcConfig, dependencies);
+  const rows = await adapter.fetch({ env: {} });
+  assert.equal(rows[0]?.apr, 0);
+  assert.equal(rows[0]?.metadata?.allowZeroApr, true);
+  assert.equal(rows[0]?.metadata?.rawApy, "-3700000000000000");
 });
