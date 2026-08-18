@@ -1,112 +1,18 @@
-/**
- * Yield Basis YB-tBTC Yield Bearing vault — on-chain reads.
- *
- * Replaces the Browserbase scraper with direct calls on Yield Basis's LT
- * ("Leveraged Token") contract.
- *
- * APR comes from a 30-day on-chain window via `readShareGrowth` — accurate
- * from day 1 with no warmup cycle. See `adapters/yb-wbtc-yieldbearing` for
- * full commentary on the pattern.
- *
- * Limitations: BASE yield only. Companion `yb-tbtc-token` adapter adds
- * $YB emissions on top.
- */
+import type { Address } from "viem";
 
 import {
-  defineAdapter,
-  ethereum,
-  math,
-  requirePositive,
-  readShareGrowth,
-  BLOCKS_PER_30D,
-} from "@bitcoinyield/adapters";
+  createYieldBasisYieldBearingAdapter,
+  type YieldBasisYieldBearingConfig,
+} from "../yieldbasis/yield-bearing-adapter.js";
 
-const LT = "0x771F7290428d830ECd41E980745c327e507823Ec";
-const ASSET_ADDRESS = "0x18084fbA666a33d37592fA2633fD49a74DD93a88"; // tBTC mainnet
-const ASSET_DECIMALS = 18;
-
-const yieldBasisLtAbi = [
-  {
-    inputs: [],
-    name: "pricePerShare",
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "updated_balances",
-    outputs: [
-      { name: "supply", type: "uint256" },
-      { name: "staked", type: "uint256" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
-
-export default defineAdapter({
+export const config = {
   slug: "yb-tbtc-yieldbearing",
   name: "Yield Basis YB-tBTC (Yield Bearing)",
-  url: "https://yieldbasis.com",
-  category: "lp",
-  custody: "multisig",
-  requires: { rpc: ["ethereum"] },
+  symbol: "yb-tBTC",
+  marketId: "9",
+  ltAddress: "0x771F7290428d830ECd41E980745c327e507823Ec" as Address,
+  assetAddress: "0x18084fbA666a33d37592fA2633fD49a74DD93a88" as Address,
+  assetDecimals: 18,
+} satisfies YieldBasisYieldBearingConfig;
 
-  async fetch() {
-    const [balancesCall, growth] = await Promise.all([
-      ethereum.readContract<readonly [bigint, bigint]>({
-        address: LT,
-        abi: yieldBasisLtAbi,
-        functionName: "updated_balances",
-      }),
-      readShareGrowth({
-        client: ethereum.getClient(),
-        address: LT,
-        abi: yieldBasisLtAbi,
-        functionName: "pricePerShare",
-        blocksBack: BLOCKS_PER_30D.ethereum,
-        decimals: 18,
-      }),
-    ]);
-
-    const [supplyRaw, stakedRaw] = balancesCall;
-
-    const totalSupply = math.fromUnits(supplyRaw, 18);
-    const stakedSupply = math.fromUnits(stakedRaw, 18);
-    const yieldBearingShares = math.fromUnits(supplyRaw - stakedRaw, 18);
-    requirePositive(yieldBearingShares, "yieldBearingShares");
-
-    const tvlBtc = math.mul(yieldBearingShares, growth.sharePriceNow);
-    requirePositive(tvlBtc, "tvlBtc");
-
-    if (!growth.hasBaseline) {
-      throw new Error(
-        "yb-tbtc-yieldbearing: 30d share-price baseline unavailable " +
-          "(archive read failed) — refusing to report apr=0",
-      );
-    }
-
-    return [
-      {
-        symbol: "yb-tBTC",
-        tvlBtc,
-        apr: Math.max(growth.apr, 0),
-        metadata: {
-          ...(growth.apr < 0 && { allowZeroApr: true }),
-          rawApr30d: growth.apr,
-          ltAddress: LT,
-          assetAddress: ASSET_ADDRESS,
-          assetDecimals: ASSET_DECIMALS,
-          sharePrice: growth.sharePriceNow,
-          sharePrice30dAgo: growth.sharePriceThen,
-          apy30d: growth.apy,
-          windowDays: growth.elapsedDays,
-          totalSupply,
-          stakedSupply,
-          yieldBearingShares,
-        },
-      },
-    ];
-  },
-});
+export default createYieldBasisYieldBearingAdapter(config);
