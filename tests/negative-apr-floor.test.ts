@@ -65,7 +65,7 @@ test("a floored zero with allowZeroApr passes normalize and boundaries", async (
         symbol: "yb-WBTC",
         tvlBtc: 129.8,
         apr: Math.max(-0.37, 0),
-        metadata: { allowZeroApr: true, rawApr30d: -0.37 },
+        metadata: { allowZeroApr: true, rawAprAllTime: -0.37 },
       },
     ],
     adapter,
@@ -73,7 +73,7 @@ test("a floored zero with allowZeroApr passes normalize and boundaries", async (
     new Date(),
   );
   assert.equal(rows[0]?.apr, 0);
-  assert.equal(rows[0]?.metadata?.rawApr30d, -0.37);
+  assert.equal(rows[0]?.metadata?.rawAprAllTime, -0.37);
 
   const { notifier, alerts } = capturingNotifier();
   const result = await applyBoundaries(rows, "yb-wbtc-yieldbearing", notifier);
@@ -91,7 +91,7 @@ test("a zero apr without allowZeroApr still fails loudly", () => {
             symbol: "yb-WBTC",
             tvlBtc: 129.8,
             apr: 0,
-            metadata: { rawApr30d: 0 },
+            metadata: { rawAprAllTime: 0 },
           },
         ],
         adapter,
@@ -109,11 +109,11 @@ test("every yieldbasis yield-bearing adapter floors apr and records the raw figu
       new URL(`../adapters/${slug}/index.ts`, import.meta.url),
       "utf8",
     );
-    assert.match(src, /Math\.max\(growth\.apr, 0\)/, `${slug} lost the floor`);
-    assert.match(src, /rawApr30d: growth\.apr/, `${slug} lost the raw figure`);
+    assert.match(src, /Math\.max\(aprAllTime, 0\)/, `${slug} lost the floor`);
+    assert.match(src, /rawAprAllTime: aprAllTime/, `${slug} lost the raw figure`);
     assert.match(
       src,
-      /growth\.apr < 0 && \{ allowZeroApr: true \}/,
+      /aprAllTime < 0 && \{ allowZeroApr: true \}/,
       `${slug} must only allow zero when the raw figure is negative`,
     );
   }
