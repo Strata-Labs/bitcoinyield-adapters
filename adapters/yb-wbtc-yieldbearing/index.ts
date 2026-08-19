@@ -1,24 +1,25 @@
 /**
  * Yield Basis YB-WBTC Yield Bearing vault — on-chain reads.
  *
- * Replaces the Browserbase scraper with direct calls on Yield Basis's LT
- * ("Leveraged Token") contract.
- *
  * LT contract behavior we rely on:
  *   - `pricePerShare()` — assets per 1 share, normalized to 18 decimals
- *     regardless of the underlying token's decimals.
+ *     regardless of the underlying token's decimals. Starts at exactly 1.0
+ *     when the market is created.
  *   - `updated_balances()` returns `(totalSupply, stakedSupply)`.
  *
  * TVL math for the yield-bearing variant:
  *   yieldBearingShares = (totalSupply - stakedSupply) / 1e18
  *   tvlBtc             = yieldBearingShares × sharePrice
  *
- * APR comes from a 30-day on-chain window via `readShareGrowth` — accurate
- * from day 1 with no warmup cycle, because the blockchain itself is the
- * history. See `src/core/utils/yield.ts` for the helper.
+ * APR is the all-time annualized PPS growth since market creation —
+ * the same "FT APY" figure the yieldbasis.com dashboard shows:
+ *   apr = (pricePerShare - 1) × secondsPerYear / secondsSinceLaunch
+ * Verified against their indexer's tradingApyAllTime to 4 decimal places
+ * (data.yieldbasis.com/api/v1/graphql, market idx 7). Because genesis PPS
+ * is exactly 1.0, no historical/archive read is needed.
  *
  * Limitations: BASE yield only (LP trading fees). The companion
- * `yb-wbtc-token` adapter adds $YB emissions on top of this same delta.
+ * `yb-wbtc-token` adapter adds $YB emissions on top.
  */
 
 import {
@@ -26,13 +27,15 @@ import {
   ethereum,
   math,
   requirePositive,
-  readShareGrowth,
-  BLOCKS_PER_30D,
 } from "@bitcoinyield/adapters";
 
 const LT = "0x651D4b8168488FA163D85304662E8278d4c55BAa";
 const ASSET_ADDRESS = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"; // WBTC mainnet
 const ASSET_DECIMALS = 8; // WBTC has 8 decimals; pricePerShare normalizes to 18 so this is metadata-only.
+// Market creation timestamp (tx that deployed LT idx 7, 2026-05-25).
+const LAUNCH_TIMESTAMP = 1_779_693_803n;
+const SECONDS_PER_YEAR = 31_536_000;
+const FORMULA_VERSION = "yieldbasis-alltime-pps-v1";
 
 const yieldBasisLtAbi = [
   {
@@ -63,60 +66,66 @@ export default defineAdapter({
   requires: { rpc: ["ethereum"] },
 
   async fetch() {
-    // Two concurrent reads: balances at "latest", and share-price growth
-    // over the trailing 30 days (which itself does its own multi-block read
-    // internally). They're independent, so Promise.all parallelizes.
-    const [balancesCall, growth] = await Promise.all([
-      ethereum.readContract<readonly [bigint, bigint]>({
+    const client = ethereum.getClient();
+    const block = await client.getBlock({ blockTag: "latest" });
+
+    const [balances, pricePerShareRaw] = await Promise.all([
+      client.readContract({
         address: LT,
         abi: yieldBasisLtAbi,
         functionName: "updated_balances",
+        blockNumber: block.number,
       }),
-      readShareGrowth({
-        client: ethereum.getClient(),
+      client.readContract({
         address: LT,
         abi: yieldBasisLtAbi,
         functionName: "pricePerShare",
-        blocksBack: BLOCKS_PER_30D.ethereum,
-        decimals: 18,
+        blockNumber: block.number,
       }),
     ]);
 
-    const [supplyRaw, stakedRaw] = balancesCall;
+    const [supplyRaw, stakedRaw] = balances;
 
     const totalSupply = math.fromUnits(supplyRaw, 18);
     const stakedSupply = math.fromUnits(stakedRaw, 18);
     const yieldBearingShares = math.fromUnits(supplyRaw - stakedRaw, 18);
     requirePositive(yieldBearingShares, "yieldBearingShares");
 
-    const tvlBtc = math.mul(yieldBearingShares, growth.sharePriceNow);
+    const sharePrice = math.fromUnits(pricePerShareRaw, 18);
+    requirePositive(sharePrice, "sharePrice");
+
+    const tvlBtc = math.mul(yieldBearingShares, sharePrice);
     requirePositive(tvlBtc, "tvlBtc");
 
-    if (!growth.hasBaseline) {
-      throw new Error(
-        "yb-wbtc-yieldbearing: 30d share-price baseline unavailable " +
-          "(archive read failed) — refusing to report apr=0",
-      );
-    }
+    const elapsedSeconds = Number(block.timestamp - LAUNCH_TIMESTAMP);
+    requirePositive(elapsedSeconds, "elapsedSeconds");
+    const aprAllTime = math.mul(
+      math.div(
+        math.mul(math.sub(sharePrice, 1), SECONDS_PER_YEAR),
+        elapsedSeconds,
+      ),
+      100,
+    );
 
     return [
       {
         symbol: "yb-WBTC",
         tvlBtc,
-        apr: Math.max(growth.apr, 0),
+        apr: Math.max(aprAllTime, 0),
         metadata: {
-          ...(growth.apr < 0 && { allowZeroApr: true }),
-          rawApr30d: growth.apr,
+          ...(aprAllTime < 0 && { allowZeroApr: true }),
+          rawAprAllTime: aprAllTime,
           ltAddress: LT,
           assetAddress: ASSET_ADDRESS,
           assetDecimals: ASSET_DECIMALS,
-          sharePrice: growth.sharePriceNow,
-          sharePrice30dAgo: growth.sharePriceThen,
-          apy30d: growth.apy,
-          windowDays: growth.elapsedDays,
+          sharePrice,
+          launchTimestamp: LAUNCH_TIMESTAMP.toString(),
+          elapsedDays: elapsedSeconds / 86_400,
           totalSupply,
           stakedSupply,
           yieldBearingShares,
+          sourceBlockNumber: block.number.toString(),
+          formulaVersion: FORMULA_VERSION,
         },
       },
     ];
