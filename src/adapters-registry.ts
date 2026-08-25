@@ -16,6 +16,7 @@ import lombardEarn from '../adapters/lombard-earn/index.js'
 import lombardFinance from '../adapters/lombard-finance/index.js'
 import merlinBtc from '../adapters/merlin-btc/index.js'
 import mezoEarn from '../adapters/mezo-earn/index.js'
+import midasMhyperbtc from '../adapters/midas-mhyperbtc/index.js'
 import morphoGauntlet from '../adapters/morpho-gauntlet/index.js'
 import solvBtcPlus from '../adapters/solv-btc-plus/index.js'
 import stacksDualStacking from '../adapters/stacks-dual-stacking/index.js'
@@ -43,6 +44,7 @@ export const adapters: Record<string, Adapter> = {
   "lombard-finance": lombardFinance,
   "merlin-btc": merlinBtc,
   "mezo-earn": mezoEarn,
+  "midas-mhyperbtc": midasMhyperbtc,
   "morpho-gauntlet": morphoGauntlet,
   "solv-btc-plus": solvBtcPlus,
   "stacks-dual-stacking": stacksDualStacking,
