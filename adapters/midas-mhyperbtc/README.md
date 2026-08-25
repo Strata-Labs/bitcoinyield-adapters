@@ -56,6 +56,8 @@ apy7d = (growth ^ (365 / actualElapsedDays) - 1) * 100
 
 The adapter also stores the 30-day compounded APY in metadata. If the RPC cannot serve the 7-day historical read, it falls back to the 30-day window. If both fail, the adapter throws instead of writing `apr = 0`.
 
+The strategy is actively managed, so a trailing NAV window can legitimately go negative. The headline `apr` is floored at 0 with the raw figure kept in `metadata.rawNavApy`, and `metadata.allowZeroApr` is set only when the raw figure is negative — a frozen NAV feed reading exactly 0 growth still fails loudly in normalize. Same pattern as the yb-\*-yieldbearing adapters.
+
 ## Environment
 
 ```bash

@@ -7,7 +7,11 @@
  * not added into headline TVL in this first version.
  *
  * Headline `apr` is the 7-day compounded NAV APY so it matches the RWA.xyz
- * 7D APY screen. The 30-day window is retained in metadata.
+ * 7D APY screen. The 30-day window is retained in metadata. The strategy is
+ * actively managed, so a trailing window can legitimately go negative; the
+ * apr is floored at 0 with the raw figure kept in metadata (allowZeroApr is
+ * only set when the raw figure is negative, so a frozen NAV feed reading
+ * exactly 0 growth still fails loudly in normalize).
  */
 
 import {
@@ -20,22 +24,21 @@ import {
 } from "@bitcoinyield/adapters";
 import type { Address } from "viem";
 
-export const ETHEREUM_TOKEN = "0xC8495EAFf71D3A563b906295fCF2f685b1783085";
-export const ETHEREUM_DATA_FEED = "0xb75B82b2012138815d1A2c4aB5B8b987da043157";
-export const ETHEREUM_CUSTOM_FEED =
-  "0x3359921992C33ef23169193a6C91F2944A82517C";
-export const ETHEREUM_DEPOSIT_VAULT =
-  "0xeD22A9861C6eDd4f1292aeAb1E44661D5f3FE65e";
-export const ETHEREUM_REDEMPTION_VAULT =
-  "0x16d4f955B0aA1b1570Fe3e9bB2f8c19C407cdb67";
-export const ETHEREUM_OFT = "0xb67f81069e890A1b3e02c7BED3A9f78bA54A445C";
+// Official Midas registry:
+// https://github.com/midas-apps/contracts/blob/main/config/constants/addresses.ts
+const ETHEREUM_TOKEN = "0xC8495EAFf71D3A563b906295fCF2f685b1783085";
+const ETHEREUM_DATA_FEED = "0xb75B82b2012138815d1A2c4aB5B8b987da043157";
+const ETHEREUM_CUSTOM_FEED = "0x3359921992C33ef23169193a6C91F2944A82517C";
+const ETHEREUM_DEPOSIT_VAULT = "0xeD22A9861C6eDd4f1292aeAb1E44661D5f3FE65e";
+const ETHEREUM_REDEMPTION_VAULT = "0x16d4f955B0aA1b1570Fe3e9bB2f8c19C407cdb67";
+const ETHEREUM_OFT = "0xb67f81069e890A1b3e02c7BED3A9f78bA54A445C";
 
-export const ROOTSTOCK_TOKEN = "0x7F71f02aE0945364F658860d67dbc10c86Ca3a3C";
-export const MONAD_TOKEN = "0xF7Cf282eC810fDed974F99c0163E792f432892BC";
+const ROOTSTOCK_TOKEN = "0x7F71f02aE0945364F658860d67dbc10c86Ca3a3C";
+const MONAD_TOKEN = "0xF7Cf282eC810fDed974F99c0163E792f432892BC";
 
+// getDataInBase18() is the official Midas NAV, always scaled to 18 decimals.
 const NAV_DECIMALS = 18;
 const BLOCKS_PER_7D_ETHEREUM = 50_400n;
-const SECONDS_PER_DAY = 86_400;
 
 const dataFeedAbi = [
   {
@@ -46,33 +49,6 @@ const dataFeedAbi = [
     type: "function",
   },
 ] as const;
-
-export function calculateUnderlyingBtc(input: {
-  totalSupplyRaw: bigint;
-  tokenDecimals: number;
-  navRaw: bigint;
-  navDecimals?: number;
-}): number {
-  const navDecimals = input.navDecimals ?? NAV_DECIMALS;
-  const supply = math.fromUnits(input.totalSupplyRaw, input.tokenDecimals);
-  const nav = math.fromUnits(input.navRaw, navDecimals);
-  return math.mul(supply, nav);
-}
-
-export function calculateNavApy(input: {
-  currentNav: number;
-  previousNav: number;
-  elapsedDays: number;
-}): number {
-  if (input.previousNav <= 0 || input.elapsedDays <= 0) {
-    throw new Error(
-      `Invalid NAV window: previousNav=${input.previousNav} elapsedDays=${input.elapsedDays}`,
-    );
-  }
-
-  const growth = math.div(input.currentNav, input.previousNav);
-  return (Math.pow(growth, 365 / input.elapsedDays) - 1) * 100;
-}
 
 export default defineAdapter({
   slug: "midas-mhyperbtc",
@@ -140,14 +116,10 @@ export default defineAdapter({
     const tokenDecimals = decimalsCall.result as number;
     const totalSupplyRaw = supplyCall.result as bigint;
     const navRaw = navCall.result as bigint;
-    const tvlBtc = requirePositive(
-      calculateUnderlyingBtc({
-        totalSupplyRaw,
-        tokenDecimals,
-        navRaw,
-      }),
-      "tvlBtc",
-    );
+
+    const totalSupply = math.fromUnits(totalSupplyRaw, tokenDecimals);
+    const nav = requirePositive(math.fromUnits(navRaw, NAV_DECIMALS), "nav");
+    const tvlBtc = requirePositive(math.mul(totalSupply, nav), "tvlBtc");
 
     const headline = growth7d.hasBaseline
       ? { window: "7d" as const, growth: growth7d }
@@ -161,14 +133,16 @@ export default defineAdapter({
       );
     }
 
-    const apr = requirePositive(headline.growth.apy, "navApy");
+    const rawNavApy = headline.growth.apy;
 
     return [
       {
         symbol: "mHyperBTC",
         tvlBtc,
-        apr,
+        apr: Math.max(rawNavApy, 0),
         metadata: {
+          ...(rawNavApy < 0 && { allowZeroApr: true }),
+          rawNavApy,
           chain: "ethereum",
           tokenAddress: ETHEREUM_TOKEN,
           dataFeedAddress: ETHEREUM_DATA_FEED,
@@ -181,8 +155,8 @@ export default defineAdapter({
             monad: MONAD_TOKEN,
           },
           tokenDecimals,
-          totalSupply: math.fromUnits(totalSupplyRaw, tokenDecimals),
-          nav: math.fromUnits(navRaw, NAV_DECIMALS),
+          totalSupply,
+          nav,
           rateWindow: headline.window,
           windowDays: headline.growth.elapsedDays,
           navThen: headline.growth.sharePriceThen,
@@ -191,7 +165,6 @@ export default defineAdapter({
           linearApr7d: growth7d.hasBaseline ? growth7d.apr : null,
           linearApr30d: growth30d.hasBaseline ? growth30d.apr : null,
           aprSource: `onchain-${headline.window}-nav-apy`,
-          secondsPerDay: SECONDS_PER_DAY,
           source:
             "https://github.com/midas-apps/contracts/blob/main/config/constants/addresses.ts",
         },
