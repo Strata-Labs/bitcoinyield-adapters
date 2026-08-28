@@ -1,12 +1,20 @@
 # Lombard
 
-Adapter for [Lombard Finance](https://www.lombard.finance), a Bitcoin liquid staking protocol that issues LBTC against staked Bitcoin.
+Adapter for [Lombard Finance](https://www.lombard.finance), issuer of LBTC — a yield-bearing Bitcoin wrapper. LBTC yield originally came from Babylon staking; in August 2026 Lombard moved it to an institutional covered-call options strategy managed by Bitwise Investment Manager (target 2.5% net APY in BTC terms), with yield accruing through a rising LBTC/BTC exchange rate rather than rebasing or payouts.
 
 ## Data sources
 
-- **TVL**: `totalSupply()` on the LBTC ERC-20 contract (`0x8236...4494`) at Ethereum mainnet, divided by `decimals()`. This is **circulating LBTC on Ethereum only** (~$650M), not the protocol-wide total BTC backing (~$960M). See "Why this approach" below.
-- **APY**: `lbtc_estimated_apy` from `https://mainnet.prod.lombard.finance/api/v1/analytics/estimated-apy`
+Everything comes from the LBTC ERC-20 contract (`0x8236...4494`) on Ethereum mainnet — no Lombard API dependency:
+
+- **TVL**: `totalSupply()` valued at the LBTC/BTC exchange rate from the token's own `getRate()` (BTC per LBTC, 18 decimals; `ratio()` is the inverse). This is **circulating LBTC on Ethereum only**, not the protocol-wide total BTC backing. See "Why this approach" below.
+- **APY**: 30-day annualized growth of `getRate()` via `readShareGrowth` archive reads — we measure holder-experienced yield ourselves rather than trusting a reported figure. The 7-day window is recorded in metadata as a shadow metric; if the 30d archive read fails, 7d serves as fallback (`metadata.rateWindow` records which was used).
 - **BTC price**: from the framework's `prices.getBtc()` (CoinGecko, cached)
+
+The previous APY source (`/api/v1/analytics/estimated-apy` → `lbtc_estimated_apy`) was gutted in the covered-call transition — it now returns `{}`, which is what broke the adapter on 2026-08-28. Cross-checks for the on-chain rate: Lombard's transparency API (`https://api.lombard.finance/v2/transparency/reports/latest`, Bitwise-signed daily records, human-viewable at [lombard.finance/transparency/lbtc](https://www.lombard.finance/transparency/lbtc)) and the Chainlink LBTC/BTC feed on mainnet. Note the rate is still *posted* by Lombard's consortium oracle — on-chain reads change the transport, not the publisher.
+
+## APR floor
+
+During the strategy's deployment ramp (staged from a $10M pilot the week of 2026-08-17 toward 50–60% of TVL), the measured figure can legitimately be ~0 or slightly negative (single-day re-marks against near-zero accrual). The adapter floors `apr` at 0, keeps the raw figure in `metadata.rawApy`, and sets `metadata.allowZeroApr` only when the raw figure is negative — so a frozen rate reading exactly 0 growth still fails loudly in normalize. The 2.5% target is recorded as `metadata.targetApyPct`, never used as the headline figure.
 
 ## Required environment
 
