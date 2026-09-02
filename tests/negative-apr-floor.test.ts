@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 import {
@@ -13,12 +12,6 @@ import type {
   MetricRow,
   Notifier,
 } from "../src/core/types.js";
-
-const SLUGS = [
-  "yb-wbtc-yieldbearing",
-  "yb-cbbtc-yieldbearing",
-  "yb-tbtc-yieldbearing",
-];
 
 function row(overrides: Partial<MetricRow> = {}): MetricRow {
   return {
@@ -65,7 +58,7 @@ test("a floored zero with allowZeroApr passes normalize and boundaries", async (
         symbol: "yb-WBTC",
         tvlBtc: 129.8,
         apr: Math.max(-0.37, 0),
-        metadata: { allowZeroApr: true, rawAprAllTime: -0.37 },
+        metadata: { allowZeroApr: true, rawApr30d: -0.37 },
       },
     ],
     adapter,
@@ -73,7 +66,7 @@ test("a floored zero with allowZeroApr passes normalize and boundaries", async (
     new Date(),
   );
   assert.equal(rows[0]?.apr, 0);
-  assert.equal(rows[0]?.metadata?.rawAprAllTime, -0.37);
+  assert.equal(rows[0]?.metadata?.rawApr30d, -0.37);
 
   const { notifier, alerts } = capturingNotifier();
   const result = await applyBoundaries(rows, "yb-wbtc-yieldbearing", notifier);
@@ -91,7 +84,7 @@ test("a zero apr without allowZeroApr still fails loudly", () => {
             symbol: "yb-WBTC",
             tvlBtc: 129.8,
             apr: 0,
-            metadata: { rawAprAllTime: 0 },
+            metadata: { rawApr30d: 0 },
           },
         ],
         adapter,
@@ -103,18 +96,7 @@ test("a zero apr without allowZeroApr still fails loudly", () => {
   );
 });
 
-test("every yieldbasis yield-bearing adapter floors apr and records the raw figure", async () => {
-  for (const slug of SLUGS) {
-    const src = await readFile(
-      new URL(`../adapters/${slug}/index.ts`, import.meta.url),
-      "utf8",
-    );
-    assert.match(src, /Math\.max\(aprAllTime, 0\)/, `${slug} lost the floor`);
-    assert.match(src, /rawAprAllTime: aprAllTime/, `${slug} lost the raw figure`);
-    assert.match(
-      src,
-      /aprAllTime < 0 && \{ allowZeroApr: true \}/,
-      `${slug} must only allow zero when the raw figure is negative`,
-    );
-  }
-});
+// Adapter-level flooring (apr floored to 0, conditional allowZeroApr, raw
+// figure in metadata) is covered by tests/yieldbasis-current-market.test.ts
+// via the negative cbBTC/tBTC fixtures; this file owns the pipeline-level
+// guarantees only.
