@@ -75,7 +75,9 @@ export default defineAdapter({
       {
         symbol: "BTC",
         tvlBtc,
-        apr: 1,
+        rate: null,
+        rateUnavailableReason:
+          "RAILS capacity does not expose a verifiable aggregate product yield",
       },
     ];
   },

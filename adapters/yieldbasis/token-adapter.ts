@@ -16,6 +16,7 @@ import type { Address } from "viem";
 // this helper. Going through the entrypoint here closes that cycle and
 // crashes module init (TDZ on productionYieldBasisTokenDependencies).
 import { defineAdapter } from "../../src/core/defineAdapter.js";
+import { createRate } from "../../src/core/rates.js";
 import type { Adapter } from "../../src/core/types.js";
 import * as ethereum from "../../src/core/utils/chains/ethereum.js";
 import * as math from "../../src/core/utils/math.js";
@@ -258,7 +259,17 @@ export function createYieldBasisTokenAdapter(
         {
           symbol: config.symbol,
           tvlBtc: metrics.tvlBtc,
-          apr: metrics.emissionsApr,
+          rate: createRate({
+            type: "apr",
+            value: metrics.emissionsApr,
+            basis: "calculated",
+            source: `ethereum:${config.gaugeController}.preview_emissions`,
+            windowDays: EMISSIONS_WINDOW_SECONDS / 86_400,
+            observedAt: new Date(
+              Number(sourceBlock.timestamp) * 1000,
+            ).toISOString(),
+            compounding: { method: "none" },
+          }),
           metadata: {
             ltAddress: config.ltAddress,
             gaugeAddress: config.gaugeAddress,

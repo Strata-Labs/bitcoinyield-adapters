@@ -14,6 +14,7 @@
 
 import {
   defineAdapter,
+  createRate,
   ethereum,
   http,
   math,
@@ -147,15 +148,29 @@ export default defineAdapter({
     const apiGrossApy = morphoData.vaultByAddress?.state?.apy;
     // requirePositive also rejects a present-but-zero APY — a paused vault or
     // API glitch must fail the run, not store 0%.
-    const apr = math.toPercent(
+    const reportedApy = math.toPercent(
       requirePositive(apiNetApy ?? apiGrossApy, "morpho netApy/apy"),
     );
+    const rate = createRate({
+      type: "apy",
+      value: reportedApy,
+      basis: "reported",
+      source: "https://api.morpho.org/graphql",
+      compounding: {
+        method: "automatic",
+        evidence: {
+          kind: "unit_value",
+          field: "convertToAssets(1 share)",
+          reference: `ethereum:${VAULT}`,
+        },
+      },
+    });
 
     return [
       {
         symbol: "WBTC",
         tvlBtc,
-        apr,
+        rate,
         metadata: {
           vaultAddress: VAULT,
           assetAddress,
@@ -173,7 +188,7 @@ export default defineAdapter({
           maxDepositBtc, // null = uncapped
           curator: "Gauntlet",
           yieldMechanism: "lending-vault",
-          aprSource: "morpho-api-net-apy",
+          rateSource: "morpho-api-net-apy",
         },
       },
     ];

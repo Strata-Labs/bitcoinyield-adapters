@@ -35,7 +35,9 @@ export default defineAdapter({
       {
         symbol: "BTC",
         tvlBtc: math.fromUnits(capacitySats, 8),
-        apr: 1.0,
+        rate: null,
+        rateUnavailableReason:
+          "Lightning capacity is not a product-level yield observation",
       },
     ];
   },

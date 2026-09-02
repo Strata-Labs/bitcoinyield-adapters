@@ -56,7 +56,7 @@ export default defineAdapter({
       latestVault.total_assets,
       "lombard-earn.total_assets",
     );
-    const apr = math.toPercent(
+    const reportedApy = math.toPercent(
       requirePositive(totalApyDecimal, "lombard-earn.total_apy"),
     );
 
@@ -65,8 +65,16 @@ export default defineAdapter({
         symbol: "LBTCv",
         tvlBtc,
         tvlUsd,
-        apr,
+        rate: null,
+        rateUnavailableReason:
+          "Reported total APY mixes vault accrual and separate BARD rewards",
         metadata: {
+          sourceRate: {
+            type: "apy",
+            value: reportedApy,
+            basis: "reported",
+            source: APY_URL,
+          },
           apyBreakdown: breakdown?.map((b) => ({
             asset: b.asset,
             apy: math.toPercent(b.apy),

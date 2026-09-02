@@ -1,4 +1,5 @@
 import type { Adapter, AdapterResult, MetricRow } from "../types.js";
+import { createRate, type Rate } from "../rates.js";
 import * as math from "../utils/math.js";
 import { requirePositive } from "../utils/validators.js";
 
@@ -23,21 +24,7 @@ export function normalize(
     }
 
     const tvlBtc = requirePositive(row.tvlBtc, `${adapter.slug}.tvlBtc`);
-    const apr =
-      typeof row.apr === "number" && Number.isFinite(row.apr) ? row.apr : NaN;
-    if (!Number.isFinite(apr)) {
-      throw new Error(`Adapter ${adapter.slug} has non-finite apr: ${row.apr}`);
-    }
-    // apr=0 is the one wrong value no downstream guard can see: boundaries
-    // allow it and the spike guard skips non-positive values. Zero must be an
-    // explicit adapter decision, never a fallback's output.
-    if (apr === 0 && row.metadata?.allowZeroApr !== true) {
-      throw new Error(
-        `Adapter ${adapter.slug} produced apr=0. If the protocol genuinely ` +
-          `pays nothing right now, set metadata.allowZeroApr; otherwise the ` +
-          `source field is broken.`,
-      );
-    }
+    const { rate, legacyValue, migrated } = normalizeRate(row, adapter.slug);
 
     if (row.tvlUsd !== undefined) {
       if (
@@ -57,9 +44,68 @@ export function normalize(
       tvlBtc,
       tvlUsd,
       btcPrice,
-      apr,
-      metadata: row.metadata,
+      apr: legacyValue,
+      apy: rate?.type === "apy" ? rate.value : null,
+      rate,
+      metadata: {
+        ...row.metadata,
+        rate,
+        rateType: rate?.type ?? null,
+        rateStatus: rate ? "valid" : "unavailable",
+        rateMigrated: migrated,
+        ...(rate === null && {
+          rateUnavailableReason: row.rateUnavailableReason,
+        }),
+      },
       timestamp,
     };
   });
+}
+
+function normalizeRate(
+  row: AdapterResult,
+  adapterSlug: string,
+): { rate: Rate | null; legacyValue: number | null; migrated: boolean } {
+  if (row.rate === null) {
+    if (!row.rateUnavailableReason?.trim()) {
+      throw new Error(
+        `Adapter ${adapterSlug} returned rate=null without rateUnavailableReason`,
+      );
+    }
+    return { rate: null, legacyValue: null, migrated: true };
+  }
+
+  if (row.rate !== undefined) {
+    const rate = createRate(row.rate);
+    return { rate, legacyValue: rate.value, migrated: true };
+  }
+
+  const apr =
+    typeof row.apr === "number" && Number.isFinite(row.apr) ? row.apr : NaN;
+  if (!Number.isFinite(apr)) {
+    throw new Error(
+      `Adapter ${adapterSlug} must return rate, rate=null, or a finite legacy apr`,
+    );
+  }
+  // Legacy apr=0 is ambiguous: old adapters used it for both valid zero and
+  // failed reads. Keep the old opt-in until that adapter migrates to `rate`.
+  if (apr === 0 && row.metadata?.allowZeroApr !== true) {
+    throw new Error(
+      `Adapter ${adapterSlug} produced apr=0. If the protocol genuinely ` +
+        `pays nothing right now, set metadata.allowZeroApr; otherwise the ` +
+        `source field is broken.`,
+    );
+  }
+
+  const rate = createRate({
+    type: "apr",
+    value: apr,
+    basis: "reported",
+    source:
+      typeof row.metadata?.aprSource === "string"
+        ? row.metadata.aprSource
+        : "legacy-adapter",
+    compounding: { method: "unknown" },
+  });
+  return { rate, legacyValue: apr, migrated: false };
 }
