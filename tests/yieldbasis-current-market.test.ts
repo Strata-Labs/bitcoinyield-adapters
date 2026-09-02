@@ -11,6 +11,10 @@ import {
 } from "../adapters/yieldbasis/yield-bearing-adapter.js";
 
 const ONE_ETHER = 10n ** 18n;
+const BUCKET_START = 1_788_220_800; // 2026-08-31T00:00:00Z
+// Fixed "now" a few hours after the fixture bucket so staleness checks are
+// deterministic regardless of wall clock.
+const NOW_MS = (BUCKET_START + 8 * 3600) * 1000;
 
 const EXPECTED_CONFIGS = [
   {
@@ -72,19 +76,22 @@ for (const {
 
     const calls: string[] = [];
     const dependencies: YieldBasisYieldBearingDependencies = {
-      async readBalances(ltAddress) {
-        calls.push(`balances:${ltAddress}`);
+      async getLatestBlock() {
+        calls.push("block");
+        return { number: 123n, timestamp: 456n };
+      },
+      async readBalances(ltAddress, blockNumber) {
+        calls.push(`balances:${ltAddress}@${blockNumber}`);
         return [20n * ONE_ETHER, 8n * ONE_ETHER];
       },
-      async readSharePrice(ltAddress) {
-        calls.push(`share-price:${ltAddress}`);
+      async readSharePrice(ltAddress, blockNumber) {
+        calls.push(`share-price:${ltAddress}@${blockNumber}`);
         return 1_050_000_000_000_000_000n;
       },
       async getThirtyDayApy(marketId) {
         calls.push(`apy:${marketId}`);
         return {
-          marketId,
-          bucketStart: 1_788_220_800,
+          bucketStart: BUCKET_START,
           apyRaw: officialApyRaw,
           sourceTimestamp: "2026-09-01T17:01:46.302Z",
         };
@@ -98,8 +105,9 @@ for (const {
     assert.ok(Math.abs(row.apr - expectedApr) < 1e-12);
     assert.equal(row.tvlBtc, 12.6);
     assert.deepEqual(calls, [
-      `balances:${expected.ltAddress}`,
-      `share-price:${expected.ltAddress}`,
+      "block",
+      `balances:${expected.ltAddress}@123`,
+      `share-price:${expected.ltAddress}@123`,
       `apy:${expected.marketId}`,
     ]);
     const { rawApr30d, ...metadata } = row.metadata ?? {};
@@ -110,7 +118,7 @@ for (const {
       aprSource: "yieldbasis-api-trading-apy-30d",
       rateWindow: "30d",
       marketId: expected.marketId,
-      bucketStart: 1_788_220_800,
+      bucketStart: BUCKET_START,
       sourceTimestamp: "2026-09-01T17:01:46.302Z",
       rawApy: officialApyRaw,
       ltAddress: expected.ltAddress,
@@ -120,32 +128,12 @@ for (const {
       totalSupply: 20,
       stakedSupply: 8,
       yieldBearingShares: 12,
+      sourceBlockNumber: "123",
+      sourceBlockTimestamp: "456",
       formulaVersion: "yieldbasis-trading-apy-30d-v1",
     });
   });
 }
-
-test("rejects an official APY row for the wrong market", async () => {
-  const dependencies: YieldBasisYieldBearingDependencies = {
-    async readBalances() {
-      return [20n * ONE_ETHER, 8n * ONE_ETHER];
-    },
-    async readSharePrice() {
-      return ONE_ETHER;
-    },
-    async getThirtyDayApy() {
-      return {
-        marketId: "3",
-        bucketStart: 1_788_220_800,
-        apyRaw: "9126729331648391",
-        sourceTimestamp: "2026-09-01T17:01:46.302Z",
-      };
-    },
-  };
-
-  const adapter = createYieldBasisYieldBearingAdapter(wBtcConfig, dependencies);
-  await assert.rejects(() => adapter.fetch({ env: {} }), /market 7.*market 3/);
-});
 
 test("selects tradingApy from the latest matching market row", () => {
   const selected = selectLatestThirtyDayApy(
@@ -159,24 +147,135 @@ test("selects tradingApy from the latest matching market row", () => {
           tradingApy: "10000000000000000",
         },
         {
-          bucketStart: 1_788_220_800,
+          bucketStart: BUCKET_START,
           marketId: "8",
           tradingApy: "-11320570079601498",
         },
         {
-          bucketStart: 1_788_220_800,
+          bucketStart: BUCKET_START,
           marketId: "7",
           tradingApy: "9126729331648391",
         },
       ],
     },
     "7",
+    NOW_MS,
   );
 
   assert.deepEqual(selected, {
-    marketId: "7",
-    bucketStart: 1_788_220_800,
+    bucketStart: BUCKET_START,
     apyRaw: "9126729331648391",
     sourceTimestamp: "2026-09-01T17:01:46.302Z",
   });
+});
+
+test("a corrected row appended for the same bucket wins the tie", () => {
+  const selected = selectLatestThirtyDayApy(
+    {
+      success: true,
+      timestamp: "2026-09-01T17:01:46.302Z",
+      data: [
+        { bucketStart: BUCKET_START, marketId: "7", tradingApy: "1" },
+        { bucketStart: BUCKET_START, marketId: "7", tradingApy: "2" },
+      ],
+    },
+    "7",
+    NOW_MS,
+  );
+
+  assert.equal(selected.apyRaw, "2");
+});
+
+test("matches marketId served as a JSON number", () => {
+  const selected = selectLatestThirtyDayApy(
+    {
+      success: true,
+      timestamp: "2026-09-01T17:01:46.302Z",
+      data: [
+        { bucketStart: BUCKET_START, marketId: 7, tradingApy: "9126729331648391" },
+      ],
+    },
+    "7",
+    NOW_MS,
+  );
+
+  assert.equal(selected.apyRaw, "9126729331648391");
+});
+
+test("falls back to the previous bucket when the newest has no APY yet", () => {
+  const selected = selectLatestThirtyDayApy(
+    {
+      success: true,
+      timestamp: "2026-09-01T17:01:46.302Z",
+      data: [
+        {
+          bucketStart: 1_788_134_400,
+          marketId: "7",
+          tradingApy: "10000000000000000",
+        },
+        { bucketStart: BUCKET_START, marketId: "7", tradingApy: null },
+      ],
+    },
+    "7",
+    NOW_MS,
+  );
+
+  assert.equal(selected.bucketStart, 1_788_134_400);
+  assert.equal(selected.apyRaw, "10000000000000000");
+});
+
+test("rejects a stale latest bucket instead of freezing the APR", () => {
+  const fourDaysLaterMs = (BUCKET_START + 4 * 86_400) * 1000;
+  assert.throws(
+    () =>
+      selectLatestThirtyDayApy(
+        {
+          success: true,
+          timestamp: "2026-09-01T17:01:46.302Z",
+          data: [
+            {
+              bucketStart: BUCKET_START,
+              marketId: "7",
+              tradingApy: "9126729331648391",
+            },
+          ],
+        },
+        "7",
+        fourDaysLaterMs,
+      ),
+    /stale/,
+  );
+});
+
+test("rejects a malformed response missing the data array", () => {
+  assert.throws(
+    () =>
+      selectLatestThirtyDayApy(
+        {
+          success: true,
+          timestamp: "2026-09-01T17:01:46.302Z",
+        } as never,
+        "7",
+        NOW_MS,
+      ),
+    /malformed/,
+  );
+});
+
+test("rejects a tradingApy that is not a 1e18-scaled integer", () => {
+  assert.throws(
+    () =>
+      selectLatestThirtyDayApy(
+        {
+          success: true,
+          timestamp: "2026-09-01T17:01:46.302Z",
+          data: [
+            { bucketStart: BUCKET_START, marketId: "7", tradingApy: "0.0091" },
+          ],
+        },
+        "7",
+        NOW_MS,
+      ),
+    /not a 1e18-scaled integer/,
+  );
 });

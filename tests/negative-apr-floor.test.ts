@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { config as wBtcConfig } from "../adapters/yb-wbtc-yieldbearing/index.js";
-import {
-  createYieldBasisYieldBearingAdapter,
-  type YieldBasisYieldBearingDependencies,
-} from "../adapters/yieldbasis/yield-bearing-adapter.js";
 import {
   applyBoundaries,
   BOUNDARIES,
@@ -101,29 +96,7 @@ test("a zero apr without allowZeroApr still fails loudly", () => {
   );
 });
 
-test("yieldbasis yield-bearing adapters floor a negative official 30d APY", async () => {
-  const oneEther = 10n ** 18n;
-  const dependencies: YieldBasisYieldBearingDependencies = {
-    async readBalances() {
-      return [20n * oneEther, 8n * oneEther];
-    },
-    async readSharePrice() {
-      return oneEther;
-    },
-    async getThirtyDayApy(marketId) {
-      return {
-        marketId,
-        bucketStart: 1_788_220_800,
-        apyRaw: "-3700000000000000",
-        sourceTimestamp: "2026-09-01T17:01:46.302Z",
-      };
-    },
-  };
-
-  const adapter = createYieldBasisYieldBearingAdapter(wBtcConfig, dependencies);
-  const rows = await adapter.fetch({ env: {} });
-  assert.equal(rows[0]?.apr, 0);
-  assert.equal(rows[0]?.metadata?.allowZeroApr, true);
-  assert.equal(rows[0]?.metadata?.rawApr30d, -0.37);
-  assert.equal(rows[0]?.metadata?.rawApy, "-3700000000000000");
-});
+// Adapter-level flooring (apr floored to 0, conditional allowZeroApr, raw
+// figure in metadata) is covered by tests/yieldbasis-current-market.test.ts
+// via the negative cbBTC/tBTC fixtures; this file owns the pipeline-level
+// guarantees only.

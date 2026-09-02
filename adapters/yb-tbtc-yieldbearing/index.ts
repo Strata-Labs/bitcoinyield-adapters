@@ -12,7 +12,7 @@ export const config = {
   marketId: "9",
   ltAddress: "0x771F7290428d830ECd41E980745c327e507823Ec" as Address,
   assetAddress: "0x18084fbA666a33d37592fA2633fD49a74DD93a88" as Address,
-  assetDecimals: 18,
+  assetDecimals: 18, // tBTC is an 18-decimal ERC-20; the pre-refactor 8 was a copy-paste from wbtc.
 } satisfies YieldBasisYieldBearingConfig;
 
 export default createYieldBasisYieldBearingAdapter(config);
