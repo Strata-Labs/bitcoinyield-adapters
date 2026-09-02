@@ -17,6 +17,20 @@ export type {
   StalenessAlert,
   Storage,
 } from "./core/types.js";
+export {
+  calculateUnitValueRate,
+  createRate,
+  type AprRateInput,
+  type ApyRateInput,
+  type AutomaticCompounding,
+  type CompoundingEvidence,
+  type CompoundingEvidenceKind,
+  type Rate,
+  type RateBasis,
+  type RateInput,
+  type RateType,
+  type UnitValueRateInput,
+} from "./core/rates.js";
 
 export * as math from "./core/utils/math.js";
 export * as prices from "./core/utils/prices.js";

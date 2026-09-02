@@ -38,7 +38,10 @@ export async function spikeGuard(
 
   for (const row of rows) {
     const tvlSpike = checkRatio(row.tvlBtc, previous.tvlBtc);
-    const aprSpike = checkRatio(row.apr, previous.apr);
+    const aprSpike =
+      row.apr !== null && previous.apr !== null
+        ? checkRatio(row.apr, previous.apr)
+        : null;
     const spike = tvlSpike
       ? { field: "tvlBtc" as const, ...tvlSpike }
       : aprSpike
@@ -51,8 +54,10 @@ export async function spikeGuard(
     }
 
     const shouldDrop = spike.multiplier >= SPIKE_DROP_THRESHOLD;
-    const oldValue = spike.field === "tvlBtc" ? previous.tvlBtc : previous.apr;
-    const newValue = spike.field === "tvlBtc" ? row.tvlBtc : row.apr;
+    const oldValue =
+      spike.field === "tvlBtc" ? previous.tvlBtc : (previous.apr as number);
+    const newValue =
+      spike.field === "tvlBtc" ? row.tvlBtc : (row.apr as number);
     await notifier.spike({
       adapter: adapterSlug,
       field: spike.field,

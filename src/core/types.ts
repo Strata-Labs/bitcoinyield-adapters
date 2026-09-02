@@ -17,11 +17,21 @@ export interface FetchContext {
   env: Record<string, string | undefined>;
 }
 
+import type { Rate } from "./rates.js";
+
 export interface AdapterResult {
   symbol: string;
   tvlBtc: number;
   tvlUsd?: number;
-  apr: number;
+  /** Canonical rate. Explicit APY requires verified compounding evidence. */
+  rate?: Rate | null;
+  /** Why no defensible product-level rate is available. Required with rate:null. */
+  rateUnavailableReason?: string;
+  /**
+   * Legacy adapter field. When `rate` is omitted this is interpreted as APR.
+   * Migrated adapters should emit `rate` instead.
+   */
+  apr?: number;
   metadata?: Record<string, unknown>;
 }
 
@@ -43,7 +53,12 @@ export interface MetricRow {
   tvlBtc: number;
   tvlUsd: number;
   btcPrice: number;
-  apr: number;
+  /** Temporary database projection. For APY rows this mirrors rate.value. */
+  apr: number | null;
+  /** Canonical APY value for upgraded storage consumers. */
+  apy?: number | null;
+  /** Canonical semantic rate record. Also copied into metadata for old storage. */
+  rate?: Rate | null;
   metadata?: Record<string, unknown>;
   timestamp: Date;
 }
