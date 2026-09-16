@@ -22,6 +22,7 @@ import solvBtcPlus from '../adapters/solv-btc-plus/index.js'
 import stacksDualStacking from '../adapters/stacks-dual-stacking/index.js'
 import stacksDualStackingBoosted from '../adapters/stacks-dual-stacking-boosted/index.js'
 import starknet from '../adapters/starknet/index.js'
+import syntetikaHbtc from '../adapters/syntetika-hbtc/index.js'
 import sypherCapitalBitcoinYieldFund from '../adapters/sypher-capital-bitcoin-yield-fund/index.js'
 import ybCbbtcToken from '../adapters/yb-cbbtc-token/index.js'
 import ybCbbtcYieldbearing from '../adapters/yb-cbbtc-yieldbearing/index.js'
@@ -50,6 +51,7 @@ export const adapters: Record<string, Adapter> = {
   "stacks-dual-stacking": stacksDualStacking,
   "stacks-dual-stacking-boosted": stacksDualStackingBoosted,
   starknet,
+  "syntetika-hbtc": syntetikaHbtc,
   "sypher-capital-bitcoin-yield-fund": sypherCapitalBitcoinYieldFund,
   "yb-cbbtc-token": ybCbbtcToken,
   "yb-cbbtc-yieldbearing": ybCbbtcYieldbearing,
