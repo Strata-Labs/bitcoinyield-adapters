@@ -38,40 +38,28 @@ function capturingNotifier() {
   return { notifier, alerts };
 }
 
-test("a negative apr is dropped regardless of metadata", async () => {
+test("a plausible negative annualized rate is preserved", async () => {
   const { notifier, alerts } = capturingNotifier();
   const result = await applyBoundaries(
-    [row({ apr: -0.37, metadata: { allowNegativeApr: true } })],
+    [row({ apr: -0.37 })],
+    "yb-wbtc-yieldbearing",
+    notifier,
+  );
+
+  assert.equal(result.kept.length, 1);
+  assert.equal(alerts.length, 0);
+});
+
+test("an implausibly large negative annualized rate is still dropped", async () => {
+  const { notifier, alerts } = capturingNotifier();
+  const result = await applyBoundaries(
+    [row({ apr: -1_001 })],
     "yb-wbtc-yieldbearing",
     notifier,
   );
 
   assert.equal(result.kept.length, 0);
   assert.equal(alerts[0]?.threshold, BOUNDARIES.apr.lb);
-});
-
-test("a floored zero with allowZeroApr passes normalize and boundaries", async () => {
-  const adapter = { slug: "yb-wbtc-yieldbearing" } as Adapter;
-  const rows = normalize(
-    [
-      {
-        symbol: "yb-WBTC",
-        tvlBtc: 129.8,
-        apr: Math.max(-0.37, 0),
-        metadata: { allowZeroApr: true, rawApr30d: -0.37 },
-      },
-    ],
-    adapter,
-    100_000,
-    new Date(),
-  );
-  assert.equal(rows[0]?.apr, 0);
-  assert.equal(rows[0]?.metadata?.rawApr30d, -0.37);
-
-  const { notifier, alerts } = capturingNotifier();
-  const result = await applyBoundaries(rows, "yb-wbtc-yieldbearing", notifier);
-  assert.equal(result.kept.length, 1);
-  assert.equal(alerts.length, 0);
 });
 
 test("a zero apr without allowZeroApr still fails loudly", () => {
@@ -95,8 +83,3 @@ test("a zero apr without allowZeroApr still fails loudly", () => {
     "a frozen share price must not hide behind the floor",
   );
 });
-
-// Adapter-level flooring (apr floored to 0, conditional allowZeroApr, raw
-// figure in metadata) is covered by tests/yieldbasis-current-market.test.ts
-// via the negative cbBTC/tBTC fixtures; this file owns the pipeline-level
-// guarantees only.

@@ -33,6 +33,7 @@ Adapters are pure functions. Import from the shared toolbox. Never reach into `p
 import {
   defineAdapter,
   http,
+  createRate,
   math,
   prices,
   requirePositive,
@@ -49,7 +50,13 @@ export default defineAdapter({
     const data = await http.get("https://api.myprotocol.com/v1/stats");
 
     const tvlBtc = requirePositive(data.totalBtc, "totalBtc");
-    const apr = math.toPercent(requirePositive(data.aprDecimal, "aprDecimal"));
+    const rate = createRate({
+      type: "apr",
+      value: math.toPercent(requirePositive(data.aprDecimal, "aprDecimal")),
+      basis: "reported",
+      source: "https://api.myprotocol.com/v1/stats",
+      compounding: { method: "unknown" },
+    });
     const btcPrice = await prices.getBtc();
 
     return [
@@ -58,7 +65,7 @@ export default defineAdapter({
         symbol: "BTC",
         tvlBtc,
         tvlUsd: math.mul(tvlBtc, btcPrice),
-        apr,
+        rate,
       },
     ];
   },
@@ -107,16 +114,15 @@ CI will run automatically. If green, a maintainer will review.
 
 ### Output (`AdapterResult`)
 
-| Field                    | Required | Notes                                                                      |
-| ------------------------ | -------- | -------------------------------------------------------------------------- |
-| `pool`                   | ✓        | Unique within this adapter (e.g., `'babylon-btc-staking'`)                 |
-| `symbol`                 | ✓        | Token symbol (`BTC`, `LBTC`, `cbBTC`, `sBTC`, etc.)                        |
-| `tvlBtc`                 | ✓        | **BTC-denominated** TVL. Throw via `requirePositive` if upstream is bad.   |
-| `apr`                    | ✓        | In percent form (4.2 = 4.2%). Use `math.toPercent(decimalRate)` if needed. |
-| `tvlUsd`                 | optional | Pipeline derives from `tvlBtc × btcPrice` if missing                       |
-| `apyBase`, `apyReward`   | optional | Sum should equal `apr`                                                     |
-| `atCapacity`, `capacity` | optional | If the product has a hard cap                                              |
-| `metadata`               | optional | Arbitrary JSON; preserved verbatim in storage                              |
+| Field                    | Required | Notes                                                                    |
+| ------------------------ | -------- | ------------------------------------------------------------------------ |
+| `pool`                   | ✓        | Unique within this adapter (e.g., `'babylon-btc-staking'`)               |
+| `symbol`                 | ✓        | Token symbol (`BTC`, `LBTC`, `cbBTC`, `sBTC`, etc.)                      |
+| `tvlBtc`                 | ✓        | **BTC-denominated** TVL. Throw via `requirePositive` if upstream is bad. |
+| `rate`                   | ✓        | `createRate(...)`; APR by default, APY only with compounding evidence.   |
+| `tvlUsd`                 | optional | Pipeline derives from `tvlBtc × btcPrice` if missing                     |
+| `atCapacity`, `capacity` | optional | If the product has a hard cap                                            |
+| `metadata`               | optional | Arbitrary JSON; preserved verbatim in storage                            |
 
 ### File structure
 
@@ -136,9 +142,10 @@ The framework only cares about `index.ts`. Everything else is for your readabili
 
 1. **Don't import `process.env` directly.** Declare needed secrets in `requires.secrets`; the runner injects them via `ctx.env`.
 2. **Don't import a DB driver or write anywhere.** Adapters return data; persistence is the framework's job.
-3. **Don't catch errors silently.** If upstream returns garbage, `requirePositive` should throw — the runner's retry mechanism handles it. A row written with `apr=0` pollutes the time series forever.
-4. **Don't roll your own retries.** `http.get` has 3 retries with exponential backoff built in.
-5. **Don't compute USD differently each time.** Use `prices.getBtc()`. Single source of truth across all adapters.
+3. **Don't catch errors silently.** If upstream returns garbage, throw so the runner retries. If no defensible rate exists, return `rate: null` with `rateUnavailableReason`; never invent zero.
+4. **Don't label a reported APY as APR.** APY requires a pollable share, NAV, exchange-rate, or protocol-accounting field proving automatic accrual into the position.
+5. **Don't roll your own retries.** `http.get` has 3 retries with exponential backoff built in.
+6. **Don't compute USD differently each time.** Use `prices.getBtc()`. Single source of truth across all adapters.
 
 ## Environment (optional)
 

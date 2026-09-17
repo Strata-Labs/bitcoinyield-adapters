@@ -2,14 +2,15 @@
  * Kraken Bitcoin Earn adapter — BoringVault on Ink L2 (chain id 57073).
  *
  * TVL: vault totalSupply × accountant getRate (rate = BTC per share).
- * APR: 7-day annualized rate growth via readShareGrowth, matching the
- *      "Net APY (7D)" window Kraken's public Dune dashboard reports.
- *      Falls back to SEED_APR when the historical read is unavailable
- *      (non-archive RPC) so TVL still records; metadata.aprSource says which.
+ * APY: 7-day compounded rate growth via readShareGrowth, matching the
+ *      "Net APY (7D)" window Kraken's public Dune dashboard reports. When
+ *      archive history is unavailable, TVL persists with rate unavailable;
+ *      a seed rate is never substituted.
  */
 
 import {
   defineAdapter,
+  createRate,
   getEvmClient,
   math,
   requirePositive,
@@ -23,9 +24,6 @@ const ACCOUNTANT = "0x4Bb6C416a00561ad6657110b76552c42d55Ff1d6";
 // Ink produces ~1 block/sec, so 604_800 blocks ≈ 7 days. readShareGrowth
 // annualizes by actual block timestamps, so drift only widens the window.
 const INK_BLOCKS_7D = 604_800n;
-
-// Used only when the archive read fails; flagged via metadata.aprSource.
-const SEED_APR = 1.94;
 
 const INK: EvmChainConfig = {
   id: 57073,
@@ -111,21 +109,42 @@ export default defineAdapter({
     const rateNow = requirePositive(growth.sharePriceNow, "getRate");
     const tvlBtc = requirePositive(math.mul(shares, rateNow), "tvlBtc");
 
-    const apr = growth.hasBaseline ? growth.apr : SEED_APR;
+    const rate = growth.hasBaseline
+      ? createRate({
+          type: "apy",
+          value: growth.apy,
+          basis: "calculated",
+          source: `ink:${ACCOUNTANT}.getRate`,
+          windowDays: growth.elapsedDays,
+          compounding: {
+            method: "automatic",
+            evidence: {
+              kind: "exchange_rate",
+              field: "getRate()",
+              reference: `ink:${ACCOUNTANT}`,
+            },
+          },
+          simpleAprPercent: growth.apr,
+        })
+      : null;
 
     return [
       {
         symbol: "BTC",
         tvlBtc,
-        apr,
+        rate,
+        ...(!rate && {
+          rateUnavailableReason:
+            "Archive rate history unavailable; seed rates are not publishable",
+        }),
         metadata: {
           vaultAddress: BORING_VAULT,
           accountantAddress: ACCOUNTANT,
           chainId: INK.id,
-          rate: rateNow,
+          exchangeRateBtcPerShare: rateNow,
           rate7dAgo: growth.sharePriceThen,
           windowDays: growth.elapsedDays,
-          aprSource: growth.hasBaseline ? "onchain-7d" : "seed-fallback",
+          rateSource: growth.hasBaseline ? "onchain-7d" : "unavailable",
         },
       },
     ];

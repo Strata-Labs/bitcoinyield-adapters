@@ -1,15 +1,15 @@
 /**
  * Shared Yield Basis Real Yield adapter.
  *
- * APR is Yield Basis's official 30-day fundamental trading APY
+ * APY is Yield Basis's official 30-day fundamental trading APY
  * (`tradingApy`). That is the unlabeled field on
  * `/v1/analytics/markets/trading-apy` and matches the dashboard's
  * FT APY (30D) column. TVL stays on-chain, with both LT reads pinned to
  * one block (and that block recorded in metadata) so supply and share
  * price cannot mix chain states.
  *
- * An analytics API failure fails the whole run, TVL included — normalize
- * requires an apr on every row, so a TVL-only row is not an option.
+ * An analytics API failure fails the whole run, TVL included. The API rate is
+ * accepted as APY because on-chain pricePerShare() proves automatic accrual.
  */
 
 import type { Address } from "viem";
@@ -19,6 +19,7 @@ import type { Address } from "viem";
 // helper. Going through the entrypoint here closes that cycle and crashes
 // module init.
 import { defineAdapter } from "../../src/core/defineAdapter.js";
+import { createRate } from "../../src/core/rates.js";
 import type { Adapter } from "../../src/core/types.js";
 import * as http from "../../src/core/utils/http.js";
 import * as math from "../../src/core/utils/math.js";
@@ -128,7 +129,8 @@ export function selectLatestThirtyDayApy(
 // One feed fetch serves all three yb-* yield-bearing adapters in the same
 // process/cycle (mirrors the prices.getBtc cache; mostly a no-op on cold
 // lambdas, collapses 3 fetches to 1 on the Node server and CLI).
-const TRADING_APY_URL = "https://api.yieldbasis.com/v1/analytics/markets/trading-apy";
+const TRADING_APY_URL =
+  "https://api.yieldbasis.com/v1/analytics/markets/trading-apy";
 const FEED_CACHE_TTL_MS = 5 * 60 * 1000;
 let feedCache: {
   at: number;
@@ -194,25 +196,39 @@ export function createYieldBasisYieldBearingAdapter(
       const tvlBtc = math.mul(yieldBearingShares, sharePrice);
       requirePositive(tvlBtc, "tvlBtc");
 
-      const rawApr30d = math.toPercent(
+      const rawApy30d = math.toPercent(
         math.fromUnits(thirtyDayApy.apyRaw, RATE_DECIMALS),
       );
-      const apr = Math.max(rawApr30d, 0);
+      const rate = createRate({
+        type: "apy",
+        value: rawApy30d,
+        basis: "reported",
+        source: TRADING_APY_URL,
+        windowDays: 30,
+        observedAt: thirtyDayApy.sourceTimestamp,
+        compounding: {
+          method: "automatic",
+          evidence: {
+            kind: "unit_value",
+            field: "pricePerShare()",
+            reference: `ethereum:${config.ltAddress}`,
+          },
+        },
+      });
 
       return [
         {
           symbol: config.symbol,
           tvlBtc,
-          apr,
+          rate,
           metadata: {
-            ...(rawApr30d < 0 && { allowZeroApr: true }),
-            aprSource: "yieldbasis-api-trading-apy-30d",
+            rateSource: "yieldbasis-api-trading-apy-30d",
             rateWindow: "30d",
             marketId: config.marketId,
             bucketStart: thirtyDayApy.bucketStart,
             sourceTimestamp: thirtyDayApy.sourceTimestamp,
             rawApy: thirtyDayApy.apyRaw,
-            rawApr30d,
+            rawApy30d,
             ltAddress: config.ltAddress,
             assetAddress: config.assetAddress,
             assetDecimals: config.assetDecimals,

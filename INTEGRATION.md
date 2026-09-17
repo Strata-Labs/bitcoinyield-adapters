@@ -33,8 +33,28 @@ the run produced a row that survived the pipeline's guards).
     "tvlBtc": 4510.7696,
     "tvlUsd": 283876269.33,
     "btcPrice": 62933,
-    "apr": 1.3315,
-    "metadata": { "aprSource": "onchain-7d" }, // optional, adapter-specific
+    // Temporary compatibility projection; may contain APR or APY until the
+    // main app completes the migration below.
+    "apr": 1.3389,
+    "apy": 1.3389,
+    "rate": {
+      "type": "apy",
+      "value": 1.3389,
+      "basis": "calculated",
+      "source": "ink:0xAccountant.getRate",
+      "windowDays": 7,
+      "compounding": {
+        "method": "automatic",
+        "evidence": {
+          "kind": "exchange_rate",
+          "field": "getRate()",
+          "reference": "ink:0xAccountant",
+        },
+      },
+    },
+    // `rate` is duplicated here until the Payload collection has first-class
+    // columns, so current production storage and MCP can consume semantics.
+    "metadata": { "rateType": "apy", "rateStatus": "valid", "rate": {} },
     "timestamp": "2026-07-06T07:00:00.000Z", // ISO 8601
   },
 }
@@ -42,6 +62,26 @@ the run produced a row that survived the pipeline's guards).
 
 Respond `200` on success (body ignored). Any non-2xx marks the run failed
 and Inngest retries it.
+
+### Main-app rate storage migration
+
+The endpoint must map the canonical `row.rate`, rather than treating
+`row.apr` as authoritative:
+
+| Database field     | Mapping                                   |
+| ------------------ | ----------------------------------------- |
+| `apr`              | `rate.type === "apr" ? rate.value : null` |
+| `apy`              | `rate.type === "apy" ? rate.value : null` |
+| `rate_type`        | `rate?.type ?? null`                      |
+| `rate_basis`       | `rate?.basis ?? null`                     |
+| `rate_window_days` | `rate?.windowDays ?? null`                |
+| `rate_source`      | `rate?.source ?? null`                    |
+| `rate_status`      | `rate ? "valid" : "unavailable"`          |
+| `rate_observation` | Full `rate` JSON for evidence/provenance  |
+
+Keep the incoming compatibility `row.apr` only during the dual-write period.
+The public UI and MCP should select `apy` when `rate_type = 'apy'`, otherwise
+`apr`; neither field should be filled with zero when a rate is unavailable.
 
 **Idempotency requirement:** the service pins `row.timestamp` to the
 Inngest event's `triggeredAt`, so a retried invocation re-sends the same

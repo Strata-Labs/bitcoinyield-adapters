@@ -7,7 +7,7 @@
  *        (sBTC valued 1:1 with BTC).
  */
 
-import { defineAdapter, math } from "@bitcoinyield/adapters";
+import { createRate, defineAdapter } from "@bitcoinyield/adapters";
 import { getTotalSbtcBtc } from "./vaults.js";
 import { getStackingApr, getSupplyApy } from "./rates.js";
 
@@ -26,21 +26,31 @@ export default defineAdapter({
       getStackingApr(),
     ]);
 
-    // getSupplyApy fails soft to 0 (logged); if the stacking component is
-    // also 0 the total is a fabricated 0% — fail the run instead.
-    const apr = math.add(supplyApy, stackingApr);
-    if (apr <= 0) {
+    if (stackingApr <= 0) {
       throw new Error(
-        `zest-protocol: apr=${apr} (supplyApy=${supplyApy}, stackingApr=${stackingApr}) — both sources broken`,
+        `zest-protocol: stackingApr=${stackingApr} — source is broken`,
       );
     }
+    const rate = createRate({
+      type: "apr",
+      value: stackingApr,
+      basis: "reported",
+      source:
+        "https://dual-stacking-v3-server.degenlab.io/dual-stacking-server/last-cycle-aprs",
+      compounding: { method: "none" },
+    });
 
     return [
       {
         symbol: "sBTC",
         tvlBtc,
-        apr,
-        metadata: { supplyApy, stackingApr },
+        rate,
+        metadata: {
+          supplyApy,
+          stackingApr,
+          componentPolicy:
+            "Headline excludes supply APY; APR and APY components are not summed",
+        },
       },
     ];
   },

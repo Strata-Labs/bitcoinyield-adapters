@@ -6,16 +6,15 @@
  * LayerZero OFT on Monad; those balances are recorded in metadata and are
  * not added into headline TVL in this first version.
  *
- * Headline `apr` is the 7-day compounded NAV APY so it matches the RWA.xyz
+ * Headline rate is the 7-day compounded NAV APY so it matches the RWA.xyz
  * 7D APY screen. The 30-day window is retained in metadata. The strategy is
  * actively managed, so a trailing window can legitimately go negative; the
- * apr is floored at 0 with the raw figure kept in metadata (allowZeroApr is
- * only set when the raw figure is negative, so a frozen NAV feed reading
- * exactly 0 growth still fails loudly in normalize).
+ * negative APY is preserved.
  */
 
 import {
   defineAdapter,
+  createRate,
   ethereum,
   math,
   readShareGrowth,
@@ -134,14 +133,29 @@ export default defineAdapter({
     }
 
     const rawNavApy = headline.growth.apy;
+    const rate = createRate({
+      type: "apy",
+      value: rawNavApy,
+      basis: "calculated",
+      source: `ethereum:${ETHEREUM_DATA_FEED}.getDataInBase18`,
+      windowDays: headline.growth.elapsedDays,
+      compounding: {
+        method: "automatic",
+        evidence: {
+          kind: "nav",
+          field: "getDataInBase18()",
+          reference: `ethereum:${ETHEREUM_DATA_FEED}`,
+        },
+      },
+      simpleAprPercent: headline.growth.apr,
+    });
 
     return [
       {
         symbol: "mHyperBTC",
         tvlBtc,
-        apr: Math.max(rawNavApy, 0),
+        rate,
         metadata: {
-          ...(rawNavApy < 0 && { allowZeroApr: true }),
           rawNavApy,
           chain: "ethereum",
           tokenAddress: ETHEREUM_TOKEN,
@@ -164,7 +178,7 @@ export default defineAdapter({
           apy30d: growth30d.hasBaseline ? growth30d.apy : null,
           linearApr7d: growth7d.hasBaseline ? growth7d.apr : null,
           linearApr30d: growth30d.hasBaseline ? growth30d.apr : null,
-          aprSource: `onchain-${headline.window}-nav-apy`,
+          rateSource: `onchain-${headline.window}-nav-apy`,
           source:
             "https://github.com/midas-apps/contracts/blob/main/config/constants/addresses.ts",
         },

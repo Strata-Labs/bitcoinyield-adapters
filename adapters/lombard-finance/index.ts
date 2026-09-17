@@ -9,7 +9,7 @@
  *      undercounts the protocol-wide figure; getting that means paging
  *      Lombard's `/api/v1/addresses` custody list and summing each BTC
  *      balance. Left Ethereum-only intentionally.
- * APR: 30-day annualized growth of getRate(), measured ourselves via
+ * APY: 30-day compounded growth of getRate(), measured ourselves via
  *      archive reads. Lombard retired Babylon staking in August 2026 and
  *      moved LBTC yield to a Bitwise-managed covered-call strategy (target
  *      2.5% net) that accrues through this exchange rate. The rate is
@@ -20,16 +20,15 @@
  *      instead of trusting their reported figure.
  *
  * During the strategy's deployment ramp the measured figure can be ~0 or
- * slightly negative (re-marks against near-zero accrual), so apr is
- * floored at 0 with the raw figure kept in metadata — allowZeroApr is only
- * set when the raw figure is negative, so a frozen rate feed reading
- * exactly 0 growth still fails loudly in normalize. The 7-day window is
+ * slightly negative (re-marks against near-zero accrual). Those observations
+ * remain negative rather than being floored. The 7-day window is
  * recorded in metadata to observe whether it stabilizes enough to become
  * the headline once the strategy is fully deployed.
  */
 
 import {
   defineAdapter,
+  createRate,
   ethereum,
   math,
   readShareGrowth,
@@ -41,7 +40,7 @@ const LBTC_ADDRESS = "0x8236a87084f8B84306f72007F36F2618A5634494" as const;
 const RATE_DECIMALS = 18;
 const BLOCKS_PER_7D_ETHEREUM = 50_400n;
 // Lombard's published target at full strategy deployment. Informational
-// metadata only — never the headline apr.
+// Metadata only — never the headline rate.
 const TARGET_APY_PCT = 2.5;
 
 const rateAbi = [
@@ -113,7 +112,10 @@ export default defineAdapter({
     }
 
     const ethereumSupply = requirePositive(
-      math.fromUnits(supplyCall.result as bigint, decimalsCall.result as number),
+      math.fromUnits(
+        supplyCall.result as bigint,
+        decimalsCall.result as number,
+      ),
       "lbtc.totalSupply",
     );
     const btcPerLbtc = requirePositive(
@@ -138,14 +140,29 @@ export default defineAdapter({
     }
 
     const rawApy = headline.growth.apy;
+    const rate = createRate({
+      type: "apy",
+      value: rawApy,
+      basis: "calculated",
+      source: `ethereum:${LBTC_ADDRESS}.getRate`,
+      windowDays: headline.growth.elapsedDays,
+      compounding: {
+        method: "automatic",
+        evidence: {
+          kind: "exchange_rate",
+          field: "getRate()",
+          reference: `ethereum:${LBTC_ADDRESS}`,
+        },
+      },
+      simpleAprPercent: headline.growth.apr,
+    });
 
     return [
       {
         symbol: "LBTC",
         tvlBtc,
-        apr: Math.max(rawApy, 0),
+        rate,
         metadata: {
-          ...(rawApy < 0 && { allowZeroApr: true }),
           rawApy,
           rateWindow: headline.window,
           windowDays: headline.growth.elapsedDays,
@@ -154,7 +171,7 @@ export default defineAdapter({
           apy30d: growth30d.hasBaseline ? growth30d.apy : null,
           linearApr7d: growth7d.hasBaseline ? growth7d.apr : null,
           linearApr30d: growth30d.hasBaseline ? growth30d.apr : null,
-          aprSource: `onchain-${headline.window}-rate-growth`,
+          rateSource: `onchain-${headline.window}-rate-growth`,
           targetApyPct: TARGET_APY_PCT,
           contractAddress: LBTC_ADDRESS,
           decimals: decimalsCall.result,

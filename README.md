@@ -18,6 +18,7 @@ A single TypeScript file (~30–60 lines) per protocol:
 // adapters/my-protocol/index.ts
 import {
   defineAdapter,
+  createRate,
   http,
   math,
   requirePositive,
@@ -39,7 +40,13 @@ export default defineAdapter({
       {
         symbol: "BTC",
         tvlBtc: requirePositive(data.totalBtc, "totalBtc"),
-        apr: math.toPercent(requirePositive(data.aprDecimal, "aprDecimal")),
+        rate: createRate({
+          type: "apr",
+          value: math.toPercent(requirePositive(data.aprDecimal, "aprDecimal")),
+          basis: "reported",
+          source: "https://api.myprotocol.com/v1/stats",
+          compounding: { method: "unknown" },
+        }),
       },
     ];
   },
@@ -47,9 +54,10 @@ export default defineAdapter({
 ```
 
 That's it. No DB connection. No retry boilerplate. No unit conversions to debug.
-You return `tvlBtc` and `apr`; the pipeline derives `tvlUsd` from the canonical
-BTC price, then normalizes, guards, and persists. Storage + alerting live in the
-framework core.
+You return `tvlBtc` and a semantic `rate`; the pipeline derives `tvlUsd` from
+the canonical BTC price, then normalizes, guards, and persists. APR is the
+default. APY requires evidence that yield accrues automatically into the held
+position. Storage + alerting live in the framework core.
 
 ## Quick start
 
@@ -81,16 +89,18 @@ The CLI ships with `NoopStorage` and no DB driver. **It is physically impossible
 | `getEvmClient(config)`                                                 | Env-first client factory for non-mainnet EVM chains (Botanix, Ink, …)    |
 | `stacks.getFungibleTokenBalance`, `stacks.callReadOnly`                | Hiro REST + Clarity contract reads                                       |
 | `requirePositive(value, name)`                                         | Throws with descriptive error if not > 0 — replaces silent-zero bugs     |
+| `createRate(input)`                                                    | Validates APR/APY semantics; APY requires compounding evidence           |
+| `calculateUnitValueRate(input)`                                        | Calculates APY from timestamped share/NAV/conversion-rate growth         |
 
 ## Pipeline (runs after every `fetch()`)
 
-| #   | Check           | Notes                                                                                          |
-| --- | --------------- | ---------------------------------------------------------------------------------------------- |
-| 1   | Normalize types | string → number, validate required fields, derive `tvlUsd` from `tvlBtc × btcPrice` if missing |
-| 2   | Boundaries      | Drop rows with `tvlBtc` outside `[0.0001, 5,000,000]` or `apr` outside `[0, 1000]%`            |
-| 3   | Spike guard     | Bidirectional 5h check on same-sign moves — alert at 3x, drop at 5x                            |
-| 4   | Persist         | Atomic insert via the configured Storage backend                                               |
-| 5   | Run stats       | Record success/error/duration for adapter health monitoring                                    |
+| #   | Check           | Notes                                                                                             |
+| --- | --------------- | ------------------------------------------------------------------------------------------------- |
+| 1   | Normalize types | string → number, validate required fields, derive `tvlUsd` from `tvlBtc × btcPrice` if missing    |
+| 2   | Boundaries      | Drop rows with `tvlBtc` outside `[0.0001, 5,000,000]` or annualized rate outside `[-1000, 1000]%` |
+| 3   | Spike guard     | Bidirectional 5h check on same-sign moves — alert at 3x, drop at 5x                               |
+| 4   | Persist         | Atomic insert via the configured Storage backend                                                  |
+| 5   | Run stats       | Record success/error/duration for adapter health monitoring                                       |
 
 The pipeline is what makes the difference between "30 lines you wrote" and "production-grade time series." You write one of those parts; the framework handles everything else.
 

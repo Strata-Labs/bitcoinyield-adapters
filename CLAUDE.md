@@ -30,7 +30,7 @@ pnpm build            # regenerates registry then builds
 Every adapter is a single file (or folder for complex ones) under `adapters/<slug>/index.ts`:
 
 ```ts
-import { defineAdapter, math, http, requirePositive } from '@bitcoinyield/adapters'
+import { createRate, defineAdapter, math, http, requirePositive } from '@bitcoinyield/adapters'
 
 export default defineAdapter({
   slug: 'protocol-name',
@@ -44,7 +44,17 @@ export default defineAdapter({
     // ctx.env.SOME_API_KEY is available if declared above
     const data = await http.get(...)
     const tvlBtc = requirePositive(parseFloat(data.tvl), 'data.tvl')
-    return [{ symbol: 'BTC', tvlBtc, apr }]
+    return [{
+      symbol: 'BTC',
+      tvlBtc,
+      rate: createRate({
+        type: 'apr',
+        value: apr,
+        basis: 'reported',
+        source: 'https://protocol.example/rates',
+        compounding: { method: 'unknown' },
+      }),
+    }]
   },
 })
 ```
@@ -55,8 +65,8 @@ Adapters are auto-discovered. Adding a new file in `adapters/` and running `pnpm
 
 For every adapter run: `fetch → normalize → boundaries → spike-guard → POST to main app`.
 
-- **normalize** — requires `symbol`, `tvlBtc`, `apr`; derives `tvlUsd` from `btcPrice` if not given
-- **boundaries** — drops rows outside `tvlBtc 0.0001..5_000_000` or `apr 0..1000`. An adapter whose measure can dip below zero floors it in the adapter and records the raw figure in metadata (see acre-mezo, yb-\*-yieldbearing) — the pipeline itself never stores a negative apr.
+- **normalize** — requires `symbol`, `tvlBtc`, and `rate` (or legacy `apr`); derives `tvlUsd` and writes canonical rate semantics into metadata during the main-app migration
+- **boundaries** — drops rows outside `tvlBtc 0.0001..5_000_000` or annualized rate -1000..1000. Negative observed rates are valid and must not be floored.
 - **spike-guard** — two bands, both directions, 5h window: >=3x alerts Discord but keeps the row; >=5x alerts and drops it (DefiLlama comparison: theirs is a one-way 5x drop)
 
 ### Toolbox (use these — don't roll your own)
@@ -72,6 +82,8 @@ Reach for these before writing anything custom:
 - `chains.stacks` — Hiro REST + `@stacks/transactions` for read-only contract calls.
 - `cms.getManualMetrics(ctx, slug)` — for products with no API or on-chain source (Sypher, Coinbase fund): reads marketer-maintained APR/TVL from the main app's CMS (`GET /api/manual-metrics/:slug`). Adapter must declare `requires.secrets: ["API_URL", "ADAPTER_KEY"]`. **Never hardcode reported figures in an adapter** — they go stale and silently overwrite CMS edits.
 - `requirePositive(value, name)` — **throws loudly if zero/negative/NaN**. Use this aggressively. Silent zeros are the bug we built this framework to prevent.
+- `createRate(input)` — validates rate semantics. APR is the default; APY requires automatic compounding evidence.
+- `calculateUnitValueRate(input)` — central share/NAV/conversion-rate annualization. Do not repeat this math inside adapters.
 
 ## Conventions
 
@@ -85,7 +97,8 @@ Reach for these before writing anything custom:
 
 ### Safety rules
 
-- **`requirePositive` over silent fallback.** If a protocol legitimately has `apr: 0`, that adapter is wrong — get the actual figure. Past production bugs were APR=0 silently storing.
+- **Unavailable is null, never zero.** Return `rate: null` with `rateUnavailableReason` when no defensible rate exists.
+- **APY requires compounding proof.** Supply a pollable share price, NAV, exchange rate, or protocol-accounting field showing yield retained in the held position.
 - **`NoopStorage` is the CLI default.** A contributor running `pnpm test <slug>` physically cannot write to production. The framework ships no DB driver.
 - **Don't mock the database in tests.** Integration tests hit a real backend or the noop storage — never a mock.
 
@@ -118,7 +131,7 @@ Discord webhook (optional, for operational alerts):
 - **acre-mezo** — disabled 2026-07-13: the vault's on-chain accounting is bricked; `totalAssets()` and `convertToAssets()` both revert with "DF: feed is unhealthy" (dormant project, price feed updater stopped, heartbeat lapsed). Re-enable when the reads work again; the adapter also carries an apr floor + `allowZeroApr` for the dormant period, remove those when Acre relaunches properly.
 - **zenrock-zenbtc** — disabled 2026-07-06: API reports `yieldAPY: 0` with the exchange rate frozen since ~2026-06-21. Re-enable when Zenrock resumes paying yield.
 - **botanix** — retired 2026-08-17 (permanent, never re-enable): Botanix Labs shut the network down — announced 2026-06-10, withdrawals closed 2026-07-09, last block 2026-07-31. Every RPC endpoint is dead. The `.disabled` file is kept only as an ERC-4626 reference; the folder can be deleted outright.
-- **yb-\*-yieldbearing apr = official 30d trading APY** — switched 2026-09-01 from all-time / inception PPS growth (`tradingApyAllTime`) to Yield Basis's official 30-day fundamental trading APY (`tradingApy` via `/v1/analytics/markets/trading-apy`). That is the unlabeled field on the official feed and matches the dashboard's **FT APY (30D)** column. TVL remains on-chain from `updated_balances()` / `pricePerShare()`. The floor-at-0 + `metadata.rawApr30d` + conditional `allowZeroApr` pattern is retained, so a negative 30d window stores 0 without hiding a frozen feed.
+- **yb-\*-yieldbearing APY = official 30d trading APY** — `tradingApy` is stored as APY because `pricePerShare()` proves automatic position-value accrual. Negative windows remain negative; they are never floored to zero.
 
 ## When in doubt
 

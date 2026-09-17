@@ -1,4 +1,3 @@
-
 import {
   defineAdapter,
   math,
@@ -28,14 +27,26 @@ export default defineAdapter({
 
     const baseApy = requirePositive(data.baseApy, "baseApy");
     const rewardApy = parseNumber(data.rewardApy, 0);
+    const reportedApy = math.add(baseApy, rewardApy);
 
     return [
       {
         symbol: "BTC+",
         tvlBtc: requirePositive(data.tvl, "tvl"),
         tvlUsd: requirePositive(data.tvlUsd, "tvlUsd"),
-        apr: math.add(baseApy, rewardApy),
-        metadata: { baseApy, rewardApy },
+        rate: null,
+        rateUnavailableReason:
+          "Source reports APY, but production ingestion does not yet verify automatic compounding",
+        metadata: {
+          sourceRate: {
+            type: "apy",
+            value: reportedApy,
+            basis: "reported",
+            source: SOLV_STATS,
+          },
+          baseApy,
+          rewardApy,
+        },
       },
     ];
   },

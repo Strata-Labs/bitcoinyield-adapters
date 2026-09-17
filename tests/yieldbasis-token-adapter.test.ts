@@ -142,7 +142,9 @@ for (const { config, expected } of EXPECTED_CONFIGS) {
     const rows = await adapter.fetch({ env: {} });
     const row = rows[0];
     assert.ok(row);
-    assert.equal(row.apr, 73);
+    assert.equal(row.rate?.type, "apr");
+    assert.equal(row.rate?.value, 73);
+    assert.deepEqual(row.rate?.compounding, { method: "none" });
     assert.equal(row.tvlBtc, 10);
 
     const metadata = row.metadata;

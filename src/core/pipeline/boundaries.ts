@@ -4,7 +4,9 @@ export const BOUNDARIES = {
   // Lower bound is permissive — some legitimate adapters report tiny TVL
   // (e.g. Stacks STX-stacking reserve between distribution cycles).
   tvlBtc: { lb: 0.0001, ub: 5_000_000 },
-  apr: { lb: 0, ub: 1_000 },
+  // Annualized short-window losses can exceed -100%. Preserve them as data;
+  // the symmetric guard still catches obvious unit/parse failures.
+  apr: { lb: -1_000, ub: 1_000 },
 };
 
 export interface BoundariesResult {
@@ -58,7 +60,7 @@ function check(row: MetricRow): {
       threshold: BOUNDARIES.tvlBtc.ub,
     };
   }
-  if (row.apr < BOUNDARIES.apr.lb) {
+  if (row.apr !== null && row.apr < BOUNDARIES.apr.lb) {
     return {
       field: "apr",
       value: row.apr,
@@ -66,7 +68,7 @@ function check(row: MetricRow): {
       threshold: BOUNDARIES.apr.lb,
     };
   }
-  if (row.apr > BOUNDARIES.apr.ub) {
+  if (row.apr !== null && row.apr > BOUNDARIES.apr.ub) {
     return {
       field: "apr",
       value: row.apr,
