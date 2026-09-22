@@ -8,6 +8,7 @@ import {
 import { normalize } from "../src/core/pipeline/normalize.js";
 import type {
   Adapter,
+  AdapterResult,
   BoundaryAlert,
   MetricRow,
   Notifier,
@@ -19,7 +20,8 @@ function row(overrides: Partial<MetricRow> = {}): MetricRow {
     tvlBtc: 129.8,
     tvlUsd: 12_980_000,
     btcPrice: 100_000,
-    apr: 1.5,
+    rate: 1.5,
+    rateType: "apy",
     timestamp: new Date("2026-08-07T00:00:00.000Z"),
     ...overrides,
   };
@@ -38,35 +40,36 @@ function capturingNotifier() {
   return { notifier, alerts };
 }
 
-test("a negative apr is dropped regardless of metadata", async () => {
+test("a negative rate is dropped regardless of metadata", async () => {
   const { notifier, alerts } = capturingNotifier();
   const result = await applyBoundaries(
-    [row({ apr: -0.37, metadata: { allowNegativeApr: true } })],
+    [row({ rate: -0.37, metadata: { allowNegativeApr: true } })],
     "yb-wbtc-yieldbearing",
     notifier,
   );
 
   assert.equal(result.kept.length, 0);
-  assert.equal(alerts[0]?.threshold, BOUNDARIES.apr.lb);
+  assert.equal(alerts[0]?.threshold, BOUNDARIES.rate.lb);
 });
 
-test("a floored zero with allowZeroApr passes normalize and boundaries", async () => {
+test("a floored zero with allowZeroRate passes normalize and boundaries", async () => {
   const adapter = { slug: "yb-wbtc-yieldbearing" } as Adapter;
   const rows = normalize(
     [
       {
         symbol: "yb-WBTC",
         tvlBtc: 129.8,
-        apr: Math.max(-0.37, 0),
-        metadata: { allowZeroApr: true, rawApr30d: -0.37 },
+        rate: Math.max(-0.37, 0),
+        rateType: "apy",
+        metadata: { allowZeroRate: true, rawApy30d: -0.37 },
       },
     ],
     adapter,
     100_000,
     new Date(),
   );
-  assert.equal(rows[0]?.apr, 0);
-  assert.equal(rows[0]?.metadata?.rawApr30d, -0.37);
+  assert.equal(rows[0]?.rate, 0);
+  assert.equal(rows[0]?.metadata?.rawApy30d, -0.37);
 
   const { notifier, alerts } = capturingNotifier();
   const result = await applyBoundaries(rows, "yb-wbtc-yieldbearing", notifier);
@@ -74,7 +77,7 @@ test("a floored zero with allowZeroApr passes normalize and boundaries", async (
   assert.equal(alerts.length, 0);
 });
 
-test("a zero apr without allowZeroApr still fails loudly", () => {
+test("a zero rate without allowZeroRate still fails loudly", () => {
   const adapter = { slug: "yb-wbtc-yieldbearing" } as Adapter;
   assert.throws(
     () =>
@@ -83,20 +86,55 @@ test("a zero apr without allowZeroApr still fails loudly", () => {
           {
             symbol: "yb-WBTC",
             tvlBtc: 129.8,
-            apr: 0,
-            metadata: { rawApr30d: 0 },
+            rate: 0,
+            rateType: "apy",
+            metadata: { rawApy30d: 0 },
           },
         ],
         adapter,
         100_000,
         new Date(),
       ),
-    /apr=0/,
+    /rate=0/,
     "a frozen share price must not hide behind the floor",
   );
 });
 
-// Adapter-level flooring (apr floored to 0, conditional allowZeroApr, raw
+test("a row without a valid rateType fails loudly", () => {
+  const adapter = { slug: "some-adapter" } as Adapter;
+  for (const rateType of [undefined, "APY", "yield"]) {
+    assert.throws(
+      () =>
+        normalize(
+          [
+            {
+              symbol: "BTC",
+              tvlBtc: 1,
+              rate: 2,
+              rateType,
+            } as unknown as AdapterResult,
+          ],
+          adapter,
+          100_000,
+          new Date(),
+        ),
+      /invalid rateType/,
+    );
+  }
+});
+
+test("normalize carries rateType through to the row", () => {
+  const adapter = { slug: "some-adapter" } as Adapter;
+  const [out] = normalize(
+    [{ symbol: "BTC", tvlBtc: 1, rate: 2, rateType: "apr" }],
+    adapter,
+    100_000,
+    new Date(),
+  );
+  assert.equal(out?.rateType, "apr");
+});
+
+// Adapter-level flooring (rate floored to 0, conditional allowZeroRate, raw
 // figure in metadata) is covered by tests/yieldbasis-current-market.test.ts
 // via the negative cbBTC/tBTC fixtures; this file owns the pipeline-level
 // guarantees only.

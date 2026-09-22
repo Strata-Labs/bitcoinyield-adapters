@@ -19,7 +19,7 @@ custodial BTC yield product, implemented as a BoringVault on Ink L2
 
 - `BITCOINYIELD_RPC_INK` — dedicated Ink RPC. Falls back to public
   endpoints (`rpc-gel.inkonchain.com`, drpc); without archive support the
-  APR falls back to a seed value and `metadata.aprSource` reports
+  APR falls back to a seed value and `metadata.rateSource` reports
   `seed-fallback` instead of `onchain-7d`.
 
 ## Cost estimate

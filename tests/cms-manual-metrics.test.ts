@@ -39,7 +39,7 @@ test("parses a fully-populated manual-metrics response", async () => {
     status: 200,
     body: {
       slug: "sypher",
-      aprPercent: 4.35,
+      ratePercent: 4.35,
       tvlUsd: 6_000_000,
       updatedAt: "2026-06-15T20:06:30.000Z",
     },
@@ -47,7 +47,7 @@ test("parses a fully-populated manual-metrics response", async () => {
 
   const metrics = await getManualMetrics(ctx(), "sypher");
   assert.deepEqual(metrics, {
-    aprPercent: 4.35,
+    ratePercent: 4.35,
     tvlUsd: 6_000_000,
     updatedAt: "2026-06-15T20:06:30.000Z",
   });
@@ -66,8 +66,23 @@ test("passes through null tvlUsd for undisclosed products", async () => {
   });
 
   const metrics = await getManualMetrics(ctx(), "coinbase");
-  assert.equal(metrics.aprPercent, 4.0);
+  assert.equal(metrics.ratePercent, 4.0);
   assert.equal(metrics.tvlUsd, null);
+});
+
+test("reads a legacy aprPercent-only response", async () => {
+  responses.set("legacy", {
+    status: 200,
+    body: {
+      slug: "legacy",
+      aprPercent: 3.1,
+      tvlUsd: null,
+      updatedAt: "2026-04-21T00:00:00.000Z",
+    },
+  });
+
+  const metrics = await getManualMetrics(ctx(), "legacy");
+  assert.equal(metrics.ratePercent, 3.1);
 });
 
 test("throws when API_URL / ADAPTER_KEY are not on ctx.env", async () => {

@@ -4,7 +4,7 @@ import type { MetricRow, Notifier } from "../types.js";
  * Bidirectional two-band spike guard, 5h window. Catches both inflations
  * and crashes (one-way guards miss data-quality regressions down).
  *
- * Alerting is decoupled from dropping. Low-base APRs legitimately double
+ * Alerting is decoupled from dropping. Low-base rates legitimately double
  * (July 2026: yb-tbtc went 1.74% -> 3.5% and the old single 2x threshold
  * blocked it into a staleness page), while the bug class that must never
  * reach the DB (unit confusion, wrong-field parses) lands 10x+ off. So:
@@ -38,11 +38,18 @@ export async function spikeGuard(
 
   for (const row of rows) {
     const tvlSpike = checkRatio(row.tvlBtc, previous.tvlBtc);
-    const aprSpike = checkRatio(row.apr, previous.apr);
+    // An APR and an APY aren't the same measure, so a relabel is not a
+    // spike. Legacy baselines (rateType null) predate the label and still
+    // compare — relabeling didn't change the stored figures.
+    const rateComparable =
+      previous.rateType === null || previous.rateType === row.rateType;
+    const rateSpike = rateComparable
+      ? checkRatio(row.rate, previous.rate)
+      : null;
     const spike = tvlSpike
       ? { field: "tvlBtc" as const, ...tvlSpike }
-      : aprSpike
-        ? { field: "apr" as const, ...aprSpike }
+      : rateSpike
+        ? { field: "rate" as const, ...rateSpike }
         : null;
 
     if (!spike) {
@@ -51,8 +58,8 @@ export async function spikeGuard(
     }
 
     const shouldDrop = spike.multiplier >= SPIKE_DROP_THRESHOLD;
-    const oldValue = spike.field === "tvlBtc" ? previous.tvlBtc : previous.apr;
-    const newValue = spike.field === "tvlBtc" ? row.tvlBtc : row.apr;
+    const oldValue = spike.field === "tvlBtc" ? previous.tvlBtc : previous.rate;
+    const newValue = spike.field === "tvlBtc" ? row.tvlBtc : row.rate;
     await notifier.spike({
       adapter: adapterSlug,
       field: spike.field,

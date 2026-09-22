@@ -83,7 +83,8 @@ export default defineAdapter({
         symbol: "BTC",
         tvlBtc,
         tvlUsd,
-        apr,
+        rate: apr,
+        rateType: "apr",
         metadata: {
           previousEpochChainFeesUsd: epochFeesUsd,
           epochsPerYear: EPOCHS_PER_YEAR,

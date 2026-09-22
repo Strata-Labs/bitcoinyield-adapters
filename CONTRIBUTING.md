@@ -58,7 +58,8 @@ export default defineAdapter({
         symbol: "BTC",
         tvlBtc,
         tvlUsd: math.mul(tvlBtc, btcPrice),
-        apr,
+        rate: apr,
+        rateType: "apr",
       },
     ];
   },
@@ -107,16 +108,17 @@ CI will run automatically. If green, a maintainer will review.
 
 ### Output (`AdapterResult`)
 
-| Field                    | Required | Notes                                                                      |
-| ------------------------ | -------- | -------------------------------------------------------------------------- |
-| `pool`                   | ✓        | Unique within this adapter (e.g., `'babylon-btc-staking'`)                 |
-| `symbol`                 | ✓        | Token symbol (`BTC`, `LBTC`, `cbBTC`, `sBTC`, etc.)                        |
-| `tvlBtc`                 | ✓        | **BTC-denominated** TVL. Throw via `requirePositive` if upstream is bad.   |
-| `apr`                    | ✓        | In percent form (4.2 = 4.2%). Use `math.toPercent(decimalRate)` if needed. |
-| `tvlUsd`                 | optional | Pipeline derives from `tvlBtc × btcPrice` if missing                       |
-| `apyBase`, `apyReward`   | optional | Sum should equal `apr`                                                     |
-| `atCapacity`, `capacity` | optional | If the product has a hard cap                                              |
-| `metadata`               | optional | Arbitrary JSON; preserved verbatim in storage                              |
+| Field                    | Required | Notes                                                                                                    |
+| ------------------------ | -------- | -------------------------------------------------------------------------------------------------------- |
+| `pool`                   | ✓        | Unique within this adapter (e.g., `'babylon-btc-staking'`)                                               |
+| `symbol`                 | ✓        | Token symbol (`BTC`, `LBTC`, `cbBTC`, `sBTC`, etc.)                                                      |
+| `tvlBtc`                 | ✓        | **BTC-denominated** TVL. Throw via `requirePositive` if upstream is bad.                                 |
+| `rate`                   | ✓        | Annualized yield in percent (4.2 = 4.2%). Use `math.toPercent(decimalRate)` if needed.                   |
+| `rateType`               | ✓        | `"apr"` (simple) or `"apy"` (compounded) — whichever the protocol publishes. Never convert between them. |
+| `tvlUsd`                 | optional | Pipeline derives from `tvlBtc × btcPrice` if missing                                                     |
+| `apyBase`, `apyReward`   | optional | Sum should equal `rate`                                                                                  |
+| `atCapacity`, `capacity` | optional | If the product has a hard cap                                                                            |
+| `metadata`               | optional | Arbitrary JSON; preserved verbatim in storage                                                            |
 
 ### File structure
 
@@ -136,7 +138,7 @@ The framework only cares about `index.ts`. Everything else is for your readabili
 
 1. **Don't import `process.env` directly.** Declare needed secrets in `requires.secrets`; the runner injects them via `ctx.env`.
 2. **Don't import a DB driver or write anywhere.** Adapters return data; persistence is the framework's job.
-3. **Don't catch errors silently.** If upstream returns garbage, `requirePositive` should throw — the runner's retry mechanism handles it. A row written with `apr=0` pollutes the time series forever.
+3. **Don't catch errors silently.** If upstream returns garbage, `requirePositive` should throw — the runner's retry mechanism handles it. A row written with `rate=0` pollutes the time series forever.
 4. **Don't roll your own retries.** `http.get` has 3 retries with exponential backoff built in.
 5. **Don't compute USD differently each time.** Use `prices.getBtc()`. Single source of truth across all adapters.
 

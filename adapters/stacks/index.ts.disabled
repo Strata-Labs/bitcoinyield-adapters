@@ -46,7 +46,8 @@ export default defineAdapter({
       {
         symbol: "BTC",
         tvlBtc: math.fromUnits(sats, 8),
-        apr: math.add(maxDefiApr, baseApr),
+        rate: math.add(maxDefiApr, baseApr),
+        rateType: "apr",
         metadata: { baseApr, maxDefiApr, reserveAddress: STACKS_RESERVE },
       },
     ];

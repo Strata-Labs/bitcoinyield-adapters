@@ -34,7 +34,8 @@ export default defineAdapter({
         symbol: "BTC+",
         tvlBtc: requirePositive(data.tvl, "tvl"),
         tvlUsd: requirePositive(data.tvlUsd, "tvlUsd"),
-        apr: math.add(baseApy, rewardApy),
+        rate: math.add(baseApy, rewardApy),
+        rateType: "apy",
         metadata: { baseApy, rewardApy },
       },
     ];

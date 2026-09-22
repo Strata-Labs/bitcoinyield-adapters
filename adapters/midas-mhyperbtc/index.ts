@@ -9,7 +9,7 @@
  * Headline `apr` is the 7-day compounded NAV APY so it matches the RWA.xyz
  * 7D APY screen. The 30-day window is retained in metadata. The strategy is
  * actively managed, so a trailing window can legitimately go negative; the
- * apr is floored at 0 with the raw figure kept in metadata (allowZeroApr is
+ * apr is floored at 0 with the raw figure kept in metadata (allowZeroRate is
  * only set when the raw figure is negative, so a frozen NAV feed reading
  * exactly 0 growth still fails loudly in normalize).
  */
@@ -139,9 +139,10 @@ export default defineAdapter({
       {
         symbol: "mHyperBTC",
         tvlBtc,
-        apr: Math.max(rawNavApy, 0),
+        rate: Math.max(rawNavApy, 0),
+        rateType: "apy",
         metadata: {
-          ...(rawNavApy < 0 && { allowZeroApr: true }),
+          ...(rawNavApy < 0 && { allowZeroRate: true }),
           rawNavApy,
           chain: "ethereum",
           tokenAddress: ETHEREUM_TOKEN,
@@ -164,7 +165,7 @@ export default defineAdapter({
           apy30d: growth30d.hasBaseline ? growth30d.apy : null,
           linearApr7d: growth7d.hasBaseline ? growth7d.apr : null,
           linearApr30d: growth30d.hasBaseline ? growth30d.apr : null,
-          aprSource: `onchain-${headline.window}-nav-apy`,
+          rateSource: `onchain-${headline.window}-nav-apy`,
           source:
             "https://github.com/midas-apps/contracts/blob/main/config/constants/addresses.ts",
         },

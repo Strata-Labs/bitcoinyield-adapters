@@ -160,7 +160,8 @@ export default defineAdapter({
       {
         symbol: "stBTC",
         tvlBtc,
-        apr: growth.apr,
+        rate: growth.apr,
+        rateType: "apr",
         metadata: {
           vaultAddress: VAULT,
           chainId: CHAIN_ID,

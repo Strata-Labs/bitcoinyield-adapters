@@ -29,8 +29,8 @@ const EXPECTED_CONFIGS = [
       assetDecimals: 8,
     },
     officialApyRaw: "-11320570079601498",
-    expectedApr: 0,
-    expectedRawApr30d: -1.1320570079601498,
+    expectedApy: 0,
+    expectedRawApy30d: -1.1320570079601498,
   },
   {
     config: tBtcConfig,
@@ -44,8 +44,8 @@ const EXPECTED_CONFIGS = [
       assetDecimals: 18,
     },
     officialApyRaw: "-5327043249151938",
-    expectedApr: 0,
-    expectedRawApr30d: -0.5327043249151938,
+    expectedApy: 0,
+    expectedRawApy30d: -0.5327043249151938,
   },
   {
     config: wBtcConfig,
@@ -59,8 +59,8 @@ const EXPECTED_CONFIGS = [
       assetDecimals: 8,
     },
     officialApyRaw: "9126729331648391",
-    expectedApr: 0.9126729331648391,
-    expectedRawApr30d: 0.9126729331648391,
+    expectedApy: 0.9126729331648391,
+    expectedRawApy30d: 0.9126729331648391,
   },
 ] as const;
 
@@ -68,8 +68,8 @@ for (const {
   config,
   expected,
   officialApyRaw,
-  expectedApr,
-  expectedRawApr30d,
+  expectedApy,
+  expectedRawApy30d,
 } of EXPECTED_CONFIGS) {
   test(`${expected.slug} publishes the official 30d trading APY`, async () => {
     assert.deepEqual(config, expected);
@@ -102,7 +102,8 @@ for (const {
     const rows = await adapter.fetch({ env: {} });
     const row = rows[0];
     assert.ok(row);
-    assert.ok(Math.abs(row.apr - expectedApr) < 1e-12);
+    assert.ok(Math.abs(row.rate - expectedApy) < 1e-12);
+    assert.equal(row.rateType, "apy");
     assert.equal(row.tvlBtc, 12.6);
     assert.deepEqual(calls, [
       "block",
@@ -110,12 +111,12 @@ for (const {
       `share-price:${expected.ltAddress}@123`,
       `apy:${expected.marketId}`,
     ]);
-    const { rawApr30d, ...metadata } = row.metadata ?? {};
-    assert.ok(typeof rawApr30d === "number");
-    assert.ok(Math.abs(rawApr30d - expectedRawApr30d) < 1e-12);
+    const { rawApy30d, ...metadata } = row.metadata ?? {};
+    assert.ok(typeof rawApy30d === "number");
+    assert.ok(Math.abs(rawApy30d - expectedRawApy30d) < 1e-12);
     assert.deepEqual(metadata, {
-      ...(expectedRawApr30d < 0 && { allowZeroApr: true }),
-      aprSource: "yieldbasis-api-trading-apy-30d",
+      ...(expectedRawApy30d < 0 && { allowZeroRate: true }),
+      rateSource: "yieldbasis-api-trading-apy-30d",
       rateWindow: "30d",
       marketId: expected.marketId,
       bucketStart: BUCKET_START,

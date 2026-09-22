@@ -35,7 +35,8 @@ export default defineAdapter({
       {
         symbol: "BTC",
         tvlBtc: math.fromUnits(capacitySats, 8),
-        apr: 1.0,
+        rate: 1.0,
+        rateType: "apr",
       },
     ];
   },

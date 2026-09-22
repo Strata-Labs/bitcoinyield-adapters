@@ -17,11 +17,20 @@ export interface FetchContext {
   env: Record<string, string | undefined>;
 }
 
+/**
+ * How `rate` annualizes. `apr` is simple (no compounding); `apy` compounds.
+ * Report the one the protocol itself publishes, never a conversion — the
+ * main app labels the figure with this.
+ */
+export type RateType = "apr" | "apy";
+
 export interface AdapterResult {
   symbol: string;
   tvlBtc: number;
   tvlUsd?: number;
-  apr: number;
+  /** Annualized yield in percent (4.2 = 4.2%). */
+  rate: number;
+  rateType: RateType;
   metadata?: Record<string, unknown>;
 }
 
@@ -43,7 +52,9 @@ export interface MetricRow {
   tvlBtc: number;
   tvlUsd: number;
   btcPrice: number;
-  apr: number;
+  rate: number;
+  /** `null` only on rows the main app stored before rateType existed. */
+  rateType: RateType | null;
   metadata?: Record<string, unknown>;
   timestamp: Date;
 }
@@ -67,7 +78,7 @@ export interface Storage {
 
 export interface SpikeAlert {
   adapter: string;
-  field: "tvlBtc" | "apr";
+  field: "tvlBtc" | "rate";
   oldValue: number;
   newValue: number;
   multiplier: number;
@@ -78,7 +89,7 @@ export interface SpikeAlert {
 
 export interface BoundaryAlert {
   adapter: string;
-  field: "tvlBtc" | "apr";
+  field: "tvlBtc" | "rate";
   value: number;
   bound: "lower" | "upper";
   threshold: number;

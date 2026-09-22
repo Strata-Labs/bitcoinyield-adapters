@@ -47,7 +47,8 @@ export default defineAdapter({
           requirePositive(data.tokenSupply, "zenrock.tokenSupply"),
           8,
         ),
-        apr: requirePositive(data.stats?.yieldAPY, "zenrock.stats.yieldAPY"),
+        rate: requirePositive(data.stats?.yieldAPY, "zenrock.stats.yieldAPY"),
+        rateType: "apy",
         metadata: {
           exchangeRate: data.exchangeRate,
           totalBtcYielded: data.stats?.totalBtcYielded,

@@ -118,14 +118,15 @@ export default defineAdapter({
       {
         symbol: "hBTC",
         tvlBtc: math.fromUnits(totalAssetsSats, 8),
-        apr,
+        rate: apr,
+        rateType: "apr",
         metadata: {
           stateContract: STATE_CONTRACT,
           controllerContract: CONTROLLER_CONTRACT,
           rewardSats7d: rewardSats,
           rewardTxCount,
           aprWindowDays: APR_WINDOW_DAYS,
-          aprSource: "onchain-log-reward",
+          rateSource: "onchain-log-reward",
         },
       },
     ];

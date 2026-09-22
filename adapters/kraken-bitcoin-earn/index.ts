@@ -5,7 +5,7 @@
  * APR: 7-day annualized rate growth via readShareGrowth, matching the
  *      "Net APY (7D)" window Kraken's public Dune dashboard reports.
  *      Falls back to SEED_APR when the historical read is unavailable
- *      (non-archive RPC) so TVL still records; metadata.aprSource says which.
+ *      (non-archive RPC) so TVL still records; metadata.rateSource says which.
  */
 
 import {
@@ -24,7 +24,7 @@ const ACCOUNTANT = "0x4Bb6C416a00561ad6657110b76552c42d55Ff1d6";
 // annualizes by actual block timestamps, so drift only widens the window.
 const INK_BLOCKS_7D = 604_800n;
 
-// Used only when the archive read fails; flagged via metadata.aprSource.
+// Used only when the archive read fails; flagged via metadata.rateSource.
 const SEED_APR = 1.94;
 
 const INK: EvmChainConfig = {
@@ -117,7 +117,8 @@ export default defineAdapter({
       {
         symbol: "BTC",
         tvlBtc,
-        apr,
+        rate: apr,
+        rateType: "apr",
         metadata: {
           vaultAddress: BORING_VAULT,
           accountantAddress: ACCOUNTANT,
@@ -125,7 +126,7 @@ export default defineAdapter({
           rate: rateNow,
           rate7dAgo: growth.sharePriceThen,
           windowDays: growth.elapsedDays,
-          aprSource: growth.hasBaseline ? "onchain-7d" : "seed-fallback",
+          rateSource: growth.hasBaseline ? "onchain-7d" : "seed-fallback",
         },
       },
     ];

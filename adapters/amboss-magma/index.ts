@@ -123,7 +123,8 @@ export default defineAdapter({
           requirePositive(stats.completed_size, "completed_size"),
           8,
         ),
-        apr: math.toPercent(parseNumber(latest.lnr_yield, 0)),
+        rate: math.toPercent(parseNumber(latest.lnr_yield, 0)),
+        rateType: "apr",
         metadata: {
           completedOrders: stats.completed_orders,
           completedFees: stats.completed_fees,

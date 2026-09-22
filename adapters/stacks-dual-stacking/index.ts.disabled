@@ -52,7 +52,8 @@ export default defineAdapter({
         symbol: "sBTC",
         tvlBtc,
         ...(tvlUsd > 0 ? { tvlUsd } : {}),
-        apr,
+        rate: apr,
+        rateType: "apr",
         metadata: {
           cycleId: data.cycle_id,
           baseApr: parseNumber(data.base_apr, 0),

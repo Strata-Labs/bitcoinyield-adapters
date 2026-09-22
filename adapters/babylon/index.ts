@@ -60,7 +60,8 @@ export default defineAdapter({
       {
         symbol: "BTC",
         tvlBtc: math.fromUnits(tvlSatoshis, 8),
-        apr: math.toPercent(rawApr),
+        rate: math.toPercent(rawApr),
+        rateType: "apr",
         metadata: {
           maxAprPercent: math.toPercent(response.data.max_staking_apr),
           activeFinalityProviders: response.data.active_finality_providers,

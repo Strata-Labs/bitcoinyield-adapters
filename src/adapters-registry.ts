@@ -19,8 +19,6 @@ import mezoEarn from '../adapters/mezo-earn/index.js'
 import midasMhyperbtc from '../adapters/midas-mhyperbtc/index.js'
 import morphoGauntlet from '../adapters/morpho-gauntlet/index.js'
 import solvBtcPlus from '../adapters/solv-btc-plus/index.js'
-import stacksDualStacking from '../adapters/stacks-dual-stacking/index.js'
-import stacksDualStackingBoosted from '../adapters/stacks-dual-stacking-boosted/index.js'
 import starknet from '../adapters/starknet/index.js'
 import syntetikaHbtc from '../adapters/syntetika-hbtc/index.js'
 import sypherCapitalBitcoinYieldFund from '../adapters/sypher-capital-bitcoin-yield-fund/index.js'
@@ -30,7 +28,6 @@ import ybTbtcToken from '../adapters/yb-tbtc-token/index.js'
 import ybTbtcYieldbearing from '../adapters/yb-tbtc-yieldbearing/index.js'
 import ybWbtcToken from '../adapters/yb-wbtc-token/index.js'
 import ybWbtcYieldbearing from '../adapters/yb-wbtc-yieldbearing/index.js'
-import zestProtocol from '../adapters/zest-protocol/index.js'
 
 export const adapters: Record<string, Adapter> = {
   amboss,
@@ -48,8 +45,6 @@ export const adapters: Record<string, Adapter> = {
   "midas-mhyperbtc": midasMhyperbtc,
   "morpho-gauntlet": morphoGauntlet,
   "solv-btc-plus": solvBtcPlus,
-  "stacks-dual-stacking": stacksDualStacking,
-  "stacks-dual-stacking-boosted": stacksDualStackingBoosted,
   starknet,
   "syntetika-hbtc": syntetikaHbtc,
   "sypher-capital-bitcoin-yield-fund": sypherCapitalBitcoinYieldFund,
@@ -59,5 +54,4 @@ export const adapters: Record<string, Adapter> = {
   "yb-tbtc-yieldbearing": ybTbtcYieldbearing,
   "yb-wbtc-token": ybWbtcToken,
   "yb-wbtc-yieldbearing": ybWbtcYieldbearing,
-  "zest-protocol": zestProtocol,
 }

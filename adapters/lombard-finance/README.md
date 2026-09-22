@@ -14,7 +14,7 @@ The previous APY source (`/api/v1/analytics/estimated-apy` → `lbtc_estimated_a
 
 ## APR floor
 
-During the strategy's deployment ramp (staged from a $10M pilot the week of 2026-08-17 toward 50–60% of TVL), the measured figure can legitimately be ~0 or slightly negative (single-day re-marks against near-zero accrual). The adapter floors `apr` at 0, keeps the raw figure in `metadata.rawApy`, and sets `metadata.allowZeroApr` only when the raw figure is negative — so a frozen rate reading exactly 0 growth still fails loudly in normalize. The 2.5% target is recorded as `metadata.targetApyPct`, never used as the headline figure.
+During the strategy's deployment ramp (staged from a $10M pilot the week of 2026-08-17 toward 50–60% of TVL), the measured figure can legitimately be ~0 or slightly negative (single-day re-marks against near-zero accrual). The adapter floors `rate` (`rateType: "apy"`) at 0, keeps the raw figure in `metadata.rawApy`, and sets `metadata.allowZeroRate` only when the raw figure is negative — so a frozen rate reading exactly 0 growth still fails loudly in normalize. The 2.5% target is recorded as `metadata.targetApyPct`, never used as the headline figure.
 
 ## Required environment
 

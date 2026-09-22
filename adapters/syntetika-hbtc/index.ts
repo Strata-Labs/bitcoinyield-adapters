@@ -115,14 +115,15 @@ export default defineAdapter({
         symbol: "hBTC",
         tvlBtc,
         tvlUsd,
-        apr,
+        rate: apr,
+        rateType: "apr",
         metadata: {
           chain: "Base",
           chainId: CHAIN_ID,
           vaultAddress: VAULT_ADDRESS,
           assetAddress: ASSET_ADDRESS,
           assetSymbol: "cbBTC",
-          aprSource:
+          rateSource:
             merklApr !== null
               ? "syntetika-residual+merkl-live"
               : "syntetika-residual+provider-rewards-fallback",
@@ -131,7 +132,7 @@ export default defineAdapter({
           strategyApr,
           rawStrategyApr,
           incentiveApr,
-          ...(merklApr === 0 && rawStrategyApr <= 0 && { allowZeroApr: true }),
+          ...(merklApr === 0 && rawStrategyApr <= 0 && { allowZeroRate: true }),
         },
       },
     ];

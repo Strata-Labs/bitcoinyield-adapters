@@ -72,7 +72,8 @@ export default defineAdapter({
         symbol: "BTC",
         tvlBtc,
         tvlUsd,
-        apr,
+        rate: apr,
+        rateType: "apr",
         metadata: {
           maxAPRStrk: data.overview.maxAPRStrk,
           totalStakeStrk: data.overview.totalStakeStrk,

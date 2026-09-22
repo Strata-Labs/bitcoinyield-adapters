@@ -4,7 +4,7 @@ export const BOUNDARIES = {
   // Lower bound is permissive — some legitimate adapters report tiny TVL
   // (e.g. Stacks STX-stacking reserve between distribution cycles).
   tvlBtc: { lb: 0.0001, ub: 5_000_000 },
-  apr: { lb: 0, ub: 1_000 },
+  rate: { lb: 0, ub: 1_000 },
 };
 
 export interface BoundariesResult {
@@ -37,7 +37,7 @@ export async function applyBoundaries(
 }
 
 function check(row: MetricRow): {
-  field: "tvlBtc" | "apr";
+  field: "tvlBtc" | "rate";
   value: number;
   bound: "lower" | "upper";
   threshold: number;
@@ -58,20 +58,20 @@ function check(row: MetricRow): {
       threshold: BOUNDARIES.tvlBtc.ub,
     };
   }
-  if (row.apr < BOUNDARIES.apr.lb) {
+  if (row.rate < BOUNDARIES.rate.lb) {
     return {
-      field: "apr",
-      value: row.apr,
+      field: "rate",
+      value: row.rate,
       bound: "lower",
-      threshold: BOUNDARIES.apr.lb,
+      threshold: BOUNDARIES.rate.lb,
     };
   }
-  if (row.apr > BOUNDARIES.apr.ub) {
+  if (row.rate > BOUNDARIES.rate.ub) {
     return {
-      field: "apr",
-      value: row.apr,
+      field: "rate",
+      value: row.rate,
       bound: "upper",
-      threshold: BOUNDARIES.apr.ub,
+      threshold: BOUNDARIES.rate.ub,
     };
   }
   return null;

@@ -24,7 +24,7 @@ realized 30-day share-price APR plus the provider-reported reward rate
 `current_apr - rewards_apy` = 0.922%, and the on-chain `convertToAssets`
 growth over the prior 30–31 days annualizes to 0.93–0.96%. The app's
 headline "CURRENT NET APY" is `net_apy`, a since-inception compounded
-figure (plus rewards), so it will read higher than the stored apr while the
+figure (plus rewards), so it will read higher than the stored rate while the
 vault is young. The adapter:
 
 1. computes the residual strategy APR
@@ -34,7 +34,7 @@ vault is young. The adapter:
    zero instead of a stale provider figure.
 
 If Merkl is unreachable or returns an unexpected shape, the adapter logs a
-warning and falls back to `rewards_apy`; `metadata.aprSource` records which
+warning and falls back to `rewards_apy`; `metadata.rateSource` records which
 path produced the stored figure. An empty Merkl campaign list is treated as
 a real zero, and a legitimately zero combined APR sets
-`metadata.allowZeroApr` so the pipeline stores it instead of failing.
+`metadata.allowZeroRate` so the pipeline stores it instead of failing.
