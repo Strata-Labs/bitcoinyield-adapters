@@ -26,6 +26,8 @@ export default defineAdapter({
       getStackingApr(),
     ]);
 
+    // Mixed sum: supplyApy compounds, stackingApr doesn't. Labeled apr
+    // because the stacking APR is ~90% of the total (1.07 of 1.19, 2026-09-17).
     // getSupplyApy fails soft to 0 (logged); if the stacking component is
     // also 0 the total is a fabricated 0% — fail the run instead.
     const apr = math.add(supplyApy, stackingApr);
@@ -39,7 +41,8 @@ export default defineAdapter({
       {
         symbol: "sBTC",
         tvlBtc,
-        apr,
+        rate: apr,
+        rateType: "apr",
         metadata: { supplyApy, stackingApr },
       },
     ];
