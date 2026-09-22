@@ -56,7 +56,7 @@ export default defineAdapter({
       latestVault.total_assets,
       "lombard-earn.total_assets",
     );
-    const apr = math.toPercent(
+    const apy = math.toPercent(
       requirePositive(totalApyDecimal, "lombard-earn.total_apy"),
     );
 
@@ -65,7 +65,8 @@ export default defineAdapter({
         symbol: "LBTCv",
         tvlBtc,
         tvlUsd,
-        apr,
+        rate: apy,
+        rateType: "apy",
         metadata: {
           apyBreakdown: breakdown?.map((b) => ({
             asset: b.asset,

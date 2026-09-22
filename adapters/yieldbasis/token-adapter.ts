@@ -258,7 +258,8 @@ export function createYieldBasisTokenAdapter(
         {
           symbol: config.symbol,
           tvlBtc: metrics.tvlBtc,
-          apr: metrics.emissionsApr,
+          rate: metrics.emissionsApr,
+          rateType: "apr",
           metadata: {
             ltAddress: config.ltAddress,
             gaugeAddress: config.gaugeAddress,

@@ -1,5 +1,5 @@
 /**
- * Sypher Capital — institutional fund, no public API. APR/TVL are maintained
+ * Sypher Capital — institutional fund, no public API. Rate/TVL are maintained
  * in the main app's CMS from monthly reports: edit there, no deploy.
  */
 
@@ -25,7 +25,7 @@ export default defineAdapter({
 
   async fetch(ctx) {
     const manual = await cms.getManualMetrics(ctx, SLUG);
-    const apr = requirePositive(manual.aprPercent, "cms.aprPercent");
+    const rate = requirePositive(manual.ratePercent, "cms.ratePercent");
     const tvlUsd = requirePositive(manual.tvlUsd, "cms.tvlUsd");
     const tvlBtc = math.div(tvlUsd, await prices.getBtc());
 
@@ -34,7 +34,10 @@ export default defineAdapter({
         symbol: "BTC",
         tvlBtc,
         tvlUsd,
-        apr,
+        rate,
+        // Label is the adapter's call, not the CMS's. Flip this if the fund
+        // starts quoting a compounded (APY) figure.
+        rateType: "apr",
         metadata: {
           source: "cms",
           sourceDetail: "monthly-report",

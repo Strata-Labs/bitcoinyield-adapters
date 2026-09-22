@@ -6,7 +6,7 @@
  * TVL: getPeriodStakeAmount(currentPeriod()), 18 decimals.
  * APR: the contract stores apr per period (x10_000), but Merlin sets the
  *      live period's apr retroactively, so it reads 0 mid-period. Fall back
- *      to the most recent period whose apr IS set; metadata.aprSource says
+ *      to the most recent period whose apr IS set; metadata.rateSource says
  *      which. The site's "8-21%" banner and "Historical Average: 11%" are
  *      marketing copy that does not reconcile with the chain (paid APRs so
  *      far: 17, 3, 1, 1), so we deliberately do not use them.
@@ -122,7 +122,8 @@ export default defineAdapter({
       {
         symbol: "BTC",
         tvlBtc,
-        apr,
+        rate: apr,
+        rateType: "apr",
         metadata: {
           stakingContract: STAKING_CONTRACT,
           chainId: MERLIN.id,
@@ -130,7 +131,7 @@ export default defineAdapter({
           periodStart: config.startTimestamp,
           periodEnd: config.endTimestamp,
           stakeCapBtc: math.fromUnits(config.stakeCap, 18),
-          aprSource:
+          rateSource:
             aprPeriod === period
               ? "current-period"
               : `last-set-period-${aprPeriod}`,

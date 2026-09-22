@@ -39,7 +39,8 @@ export default defineAdapter({
       {
         symbol: "BTC",
         tvlBtc: requirePositive(data.totalBtc, "totalBtc"),
-        apr: math.toPercent(requirePositive(data.aprDecimal, "aprDecimal")),
+        rate: math.toPercent(requirePositive(data.aprDecimal, "aprDecimal")),
+        rateType: "apr",
       },
     ];
   },
@@ -47,7 +48,8 @@ export default defineAdapter({
 ```
 
 That's it. No DB connection. No retry boilerplate. No unit conversions to debug.
-You return `tvlBtc` and `apr`; the pipeline derives `tvlUsd` from the canonical
+You return `tvlBtc`, `rate`, and `rateType` (`"apr"` or `"apy"`, whichever
+the protocol publishes); the pipeline derives `tvlUsd` from the canonical
 BTC price, then normalizes, guards, and persists. Storage + alerting live in the
 framework core.
 
@@ -84,13 +86,13 @@ The CLI ships with `NoopStorage` and no DB driver. **It is physically impossible
 
 ## Pipeline (runs after every `fetch()`)
 
-| #   | Check           | Notes                                                                                          |
-| --- | --------------- | ---------------------------------------------------------------------------------------------- |
-| 1   | Normalize types | string → number, validate required fields, derive `tvlUsd` from `tvlBtc × btcPrice` if missing |
-| 2   | Boundaries      | Drop rows with `tvlBtc` outside `[0.0001, 5,000,000]` or `apr` outside `[0, 1000]%`            |
-| 3   | Spike guard     | Bidirectional 5h check on same-sign moves — alert at 3x, drop at 5x                            |
-| 4   | Persist         | Atomic insert via the configured Storage backend                                               |
-| 5   | Run stats       | Record success/error/duration for adapter health monitoring                                    |
+| #   | Check           | Notes                                                                                                  |
+| --- | --------------- | ------------------------------------------------------------------------------------------------------ |
+| 1   | Normalize types | string → number, validate required fields, derive `tvlUsd` from `tvlBtc × btcPrice` if missing         |
+| 2   | Boundaries      | Drop rows with `tvlBtc` outside `[0.0001, 5,000,000]` or `rate` outside `[0, 1000]%`                   |
+| 3   | Spike guard     | Bidirectional 5h check on same-sign moves — alert at 3x, drop at 5x (rate skipped if its type changed) |
+| 4   | Persist         | Atomic insert via the configured Storage backend                                                       |
+| 5   | Run stats       | Record success/error/duration for adapter health monitoring                                            |
 
 The pipeline is what makes the difference between "30 lines you wrote" and "production-grade time series." You write one of those parts; the framework handles everything else.
 

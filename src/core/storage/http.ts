@@ -8,6 +8,8 @@
  *
  *   POST /api/adapter-metrics
  *        body: { slug, row }                  → 200
+ *        row carries `rate` + `rateType`, plus `apr` (= rate) as a deprecated
+ *        alias until the main app reads the new fields.
  *
  *   POST /api/adapter-status
  *        body: { slug, ...AdapterRunRecord }  → 200
@@ -20,7 +22,12 @@
  * dropped responses become duplicate rows.
  */
 
-import type { Storage, MetricRow, AdapterRunRecord } from "../types.js";
+import type {
+  Storage,
+  MetricRow,
+  AdapterRunRecord,
+  RateType,
+} from "../types.js";
 
 export interface HttpStorageOptions {
   baseUrl: string;
@@ -71,10 +78,12 @@ export class HttpStorage implements Storage {
           "Multi-row adapters are no longer supported — split into separate adapter folders.",
       );
     }
-    const [row] = rows;
+    const row = rows[0] as MetricRow;
+    // TODO(rate-type): drop the `apr` alias once the main app stores
+    // rate + rateType (see INTEGRATION.md).
     const res = await this.request("POST", "/api/adapter-metrics", {
       slug,
-      row,
+      row: { ...row, apr: row.rate },
     });
     if (!res.ok) {
       throw new Error(
@@ -118,15 +127,32 @@ export class HttpStorage implements Storage {
   }
 }
 
-interface SerializedMetricRow extends Omit<MetricRow, "timestamp" | "symbol"> {
+interface SerializedMetricRow extends Omit<
+  MetricRow,
+  "timestamp" | "symbol" | "rate" | "rateType"
+> {
   timestamp: string;
   /** The main app doesn't persist symbol yet; absent from `latest` responses. */
   symbol?: string;
+  rate?: number;
+  rateType?: RateType | null;
+  /** Legacy name for `rate`; the only field on rows stored before rateType. */
+  apr?: number;
 }
 
 function deserializeRow(row: SerializedMetricRow): MetricRow {
+  const { apr, rate, rateType, ...rest } = row;
+  const value = rate ?? apr;
+  if (typeof value !== "number") {
+    throw new Error("HttpStorage: latest row has neither rate nor apr");
+  }
   return {
-    ...row,
+    ...rest,
+    rate: value,
+    // Anything but a known label reads as "unlabeled". Passing an unknown
+    // value through would make the spike guard treat every new row as a
+    // relabel and silently skip the rate check for that adapter.
+    rateType: rateType === "apr" || rateType === "apy" ? rateType : null,
     symbol: row.symbol ?? "",
     timestamp: new Date(row.timestamp),
   };

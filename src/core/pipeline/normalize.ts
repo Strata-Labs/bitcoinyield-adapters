@@ -23,18 +23,30 @@ export function normalize(
     }
 
     const tvlBtc = requirePositive(row.tvlBtc, `${adapter.slug}.tvlBtc`);
-    const apr =
-      typeof row.apr === "number" && Number.isFinite(row.apr) ? row.apr : NaN;
-    if (!Number.isFinite(apr)) {
-      throw new Error(`Adapter ${adapter.slug} has non-finite apr: ${row.apr}`);
+    const rate =
+      typeof row.rate === "number" && Number.isFinite(row.rate)
+        ? row.rate
+        : NaN;
+    if (!Number.isFinite(rate)) {
+      throw new Error(
+        `Adapter ${adapter.slug} has non-finite rate: ${row.rate}`,
+      );
     }
-    // apr=0 is the one wrong value no downstream guard can see: boundaries
+    // Never defaulted: an unlabeled figure is exactly the APR/APY mix-up
+    // rateType exists to end.
+    if (row.rateType !== "apr" && row.rateType !== "apy") {
+      throw new Error(
+        `Adapter ${adapter.slug} has invalid rateType: ${row.rateType} ` +
+          `(expected "apr" or "apy")`,
+      );
+    }
+    // rate=0 is the one wrong value no downstream guard can see: boundaries
     // allow it and the spike guard skips non-positive values. Zero must be an
     // explicit adapter decision, never a fallback's output.
-    if (apr === 0 && row.metadata?.allowZeroApr !== true) {
+    if (rate === 0 && row.metadata?.allowZeroRate !== true) {
       throw new Error(
-        `Adapter ${adapter.slug} produced apr=0. If the protocol genuinely ` +
-          `pays nothing right now, set metadata.allowZeroApr; otherwise the ` +
+        `Adapter ${adapter.slug} produced rate=0. If the protocol genuinely ` +
+          `pays nothing right now, set metadata.allowZeroRate; otherwise the ` +
           `source field is broken.`,
       );
     }
@@ -57,7 +69,8 @@ export function normalize(
       tvlBtc,
       tvlUsd,
       btcPrice,
-      apr,
+      rate,
+      rateType: row.rateType,
       metadata: row.metadata,
       timestamp,
     };

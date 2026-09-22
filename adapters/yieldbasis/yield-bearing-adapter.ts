@@ -1,7 +1,7 @@
 /**
  * Shared Yield Basis Real Yield adapter.
  *
- * APR is Yield Basis's official 30-day fundamental trading APY
+ * Rate is Yield Basis's official 30-day fundamental trading APY
  * (`tradingApy`). That is the unlabeled field on
  * `/v1/analytics/markets/trading-apy` and matches the dashboard's
  * FT APY (30D) column. TVL stays on-chain, with both LT reads pinned to
@@ -9,7 +9,7 @@
  * price cannot mix chain states.
  *
  * An analytics API failure fails the whole run, TVL included — normalize
- * requires an apr on every row, so a TVL-only row is not an option.
+ * requires a rate on every row, so a TVL-only row is not an option.
  */
 
 import type { Address } from "viem";
@@ -194,25 +194,26 @@ export function createYieldBasisYieldBearingAdapter(
       const tvlBtc = math.mul(yieldBearingShares, sharePrice);
       requirePositive(tvlBtc, "tvlBtc");
 
-      const rawApr30d = math.toPercent(
+      const rawApy30d = math.toPercent(
         math.fromUnits(thirtyDayApy.apyRaw, RATE_DECIMALS),
       );
-      const apr = Math.max(rawApr30d, 0);
+      const apy = Math.max(rawApy30d, 0);
 
       return [
         {
           symbol: config.symbol,
           tvlBtc,
-          apr,
+          rate: apy,
+          rateType: "apy",
           metadata: {
-            ...(rawApr30d < 0 && { allowZeroApr: true }),
-            aprSource: "yieldbasis-api-trading-apy-30d",
+            ...(rawApy30d < 0 && { allowZeroRate: true }),
+            rateSource: "yieldbasis-api-trading-apy-30d",
             rateWindow: "30d",
             marketId: config.marketId,
             bucketStart: thirtyDayApy.bucketStart,
             sourceTimestamp: thirtyDayApy.sourceTimestamp,
             rawApy: thirtyDayApy.apyRaw,
-            rawApr30d,
+            rawApy30d,
             ltAddress: config.ltAddress,
             assetAddress: config.assetAddress,
             assetDecimals: config.assetDecimals,

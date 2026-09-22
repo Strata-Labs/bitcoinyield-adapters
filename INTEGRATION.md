@@ -33,8 +33,10 @@ the run produced a row that survived the pipeline's guards).
     "tvlBtc": 4510.7696,
     "tvlUsd": 283876269.33,
     "btcPrice": 62933,
-    "apr": 1.3315,
-    "metadata": { "aprSource": "onchain-7d" }, // optional, adapter-specific
+    "rate": 1.3315, // percent
+    "rateType": "apr", // "apr" (simple) | "apy" (compounded) — label the figure with this
+    "apr": 1.3315, // DEPRECATED alias of rate, sent until the main app stores rate + rateType
+    "metadata": { "rateSource": "onchain-7d" }, // optional, adapter-specific
     "timestamp": "2026-07-06T07:00:00.000Z", // ISO 8601
   },
 }
@@ -55,7 +57,7 @@ compares each new row against this baseline.
 
 ```jsonc
 // 200 response
-{ "row": { /* same shape as row above */ } }
+{ "row": { /* same shape as row above; legacy rows may carry only apr */ } }
 // or, when the adapter has no rows yet:
 { "row": null }   // 404 is also treated as "no baseline"
 ```
@@ -86,7 +88,7 @@ Upsert by `slug` (one row per adapter, latest state wins). Respond `200`.
 
 ### 4. `GET /api/manual-metrics/:slug`
 
-Serves manually-maintained APR/TVL for CMS-sourced adapters (products with
+Serves manually-maintained rate/TVL for CMS-sourced adapters (products with
 no API or on-chain source — currently Sypher Capital and Coinbase BTC Yield
 Fund). Must read the marketer-edited CMS collection (`yieldProducts`), NOT
 `protocolMetrics` — reading the latter back would create a feedback loop
@@ -96,16 +98,46 @@ that echoes the adapter's own output.
 // 200 response
 {
   "slug": "sypher-capital-bitcoin-yield-fund",
-  "aprPercent": 4.35, // percentage: 4.35 = 4.35%
+  "ratePercent": 4.35, // percentage: 4.35 = 4.35% — the adapter decides whether it's an APR or an APY
   "tvlUsd": 6000000, // null when the product doesn't disclose TVL
   "updatedAt": "2026-06-15T20:06:30.000Z", // last CMS edit (ISO 8601)
 }
 // 404 when no CMS product matches the slug
 ```
 
+Transitional: a response with only the legacy `aprPercent` is still
+accepted.
+
 The adapter service fetches this hourly, validates it (`requirePositive`,
 boundaries, spike guard — a fat-fingered CMS edit trips the guard), and
 POSTs the resulting row back via `POST /api/adapter-metrics`.
+
+## Rate type (`apr` → `rate` + `rateType`)
+
+Adapters used to put both APRs and APYs in `apr`. Every row now says which it
+is: `rate` (the number) plus `rateType` (`"apr" | "apy"`).
+
+Implemented in the main app (branch `feat/rate-type`):
+
+1. **`POST /api/adapter-metrics`** accepts `rate` + `rateType` and stores them.
+   The `protocol_metrics.apr` column keeps its name and keeps holding the
+   number; `protocol_metrics.rate_type` carries the label. Rows written before
+   the split stay `NULL` and display as APR — no backfill, since each adapter
+   has always measured the same thing and its next row settles the label.
+2. **`GET /api/adapter-metrics/:slug/latest`** returns `rate` and `rateType`
+   (plus `apr` as a legacy alias), so the spike guard sees the label.
+3. **`GET /api/manual-metrics/:slug`** serves `ratePercent` from the CMS
+   (`yieldProducts.estimatedAPR`). The label is set in the adapter, like
+   every other adapter — the CMS never decides APR vs APY.
+4. **Display** labels every figure with its own type, and never converts
+   between the two.
+
+Migration: `src/migrations/20260917_120000_rate_type.ts` in the main app.
+
+Once both deploys are live, the transitional code can go: the `apr` alias in
+`src/core/storage/http.ts` and the `aprPercent` fallback in
+`src/core/utils/cms.ts` here (both marked `TODO(rate-type)`), and the legacy
+`apr` / `aprPercent` fields the main app's two routes still emit.
 
 ## Production environment (this service, on Vercel)
 

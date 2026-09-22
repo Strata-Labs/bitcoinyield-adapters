@@ -75,7 +75,8 @@ export default defineAdapter({
       {
         symbol: "BTC",
         tvlBtc,
-        apr: 1,
+        rate: 1,
+        rateType: "apr",
       },
     ];
   },

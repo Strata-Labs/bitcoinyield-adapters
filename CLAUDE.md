@@ -44,7 +44,7 @@ export default defineAdapter({
     // ctx.env.SOME_API_KEY is available if declared above
     const data = await http.get(...)
     const tvlBtc = requirePositive(parseFloat(data.tvl), 'data.tvl')
-    return [{ symbol: 'BTC', tvlBtc, apr }]
+    return [{ symbol: 'BTC', tvlBtc, rate, rateType: 'apr' }]
   },
 })
 ```
@@ -55,9 +55,9 @@ Adapters are auto-discovered. Adding a new file in `adapters/` and running `pnpm
 
 For every adapter run: `fetch → normalize → boundaries → spike-guard → POST to main app`.
 
-- **normalize** — requires `symbol`, `tvlBtc`, `apr`; derives `tvlUsd` from `btcPrice` if not given
-- **boundaries** — drops rows outside `tvlBtc 0.0001..5_000_000` or `apr 0..1000`. An adapter whose measure can dip below zero floors it in the adapter and records the raw figure in metadata (see acre-mezo, yb-\*-yieldbearing) — the pipeline itself never stores a negative apr.
-- **spike-guard** — two bands, both directions, 5h window: >=3x alerts Discord but keeps the row; >=5x alerts and drops it (DefiLlama comparison: theirs is a one-way 5x drop)
+- **normalize** — requires `symbol`, `tvlBtc`, `rate`, `rateType` (`"apr"` | `"apy"`); derives `tvlUsd` from `btcPrice` if not given
+- **boundaries** — drops rows outside `tvlBtc 0.0001..5_000_000` or `rate 0..1000`. An adapter whose measure can dip below zero floors it in the adapter and records the raw figure in metadata (see acre-mezo, yb-\*-yieldbearing) — the pipeline itself never stores a negative rate.
+- **spike-guard** — two bands, both directions, 5h window: >=3x alerts Discord but keeps the row; >=5x alerts and drops it. The rate isn't compared when `rateType` changed from the baseline (DefiLlama comparison: theirs is a one-way 5x drop)
 
 ### Toolbox (use these — don't roll your own)
 
@@ -85,7 +85,8 @@ Reach for these before writing anything custom:
 
 ### Safety rules
 
-- **`requirePositive` over silent fallback.** If a protocol legitimately has `apr: 0`, that adapter is wrong — get the actual figure. Past production bugs were APR=0 silently storing.
+- **`requirePositive` over silent fallback.** If a protocol legitimately has `rate: 0`, that adapter is wrong — get the actual figure. Past production bugs were APR=0 silently storing.
+- **`rateType` is what the protocol publishes.** `"apr"` for simple/linear annualization, `"apy"` for compounded. Report the figure the protocol shows; never convert between them. Mixed sums (zest-protocol) take the label of the dominant component.
 - **`NoopStorage` is the CLI default.** A contributor running `pnpm test <slug>` physically cannot write to production. The framework ships no DB driver.
 - **Don't mock the database in tests.** Integration tests hit a real backend or the noop storage — never a mock.
 
@@ -115,11 +116,12 @@ Discord webhook (optional, for operational alerts):
 
 - **Lombard multi-chain LBTC** — intentionally reads Ethereum supply only (~$650M); the protocol-wide backing (~$960M) requires summing BTC balances across Lombard's `/api/v1/addresses` custody list (needs a Bitcoin indexer). Documented in the adapter README.
 - **`adapterStatus` collection** — needs to be added to the main app before status reporting can go live (see INTEGRATION.md).
+- **apr → rate + rateType migration** — adapters send `rate` + `rateType` plus a deprecated `apr` alias; the CMS reader falls back to legacy `aprPercent` labeled apr. The main app side is done on its `feat/rate-type` branch (`protocol_metrics.rate_type`; the value column keeps its old name). The label is always the adapter's call — CMS-sourced adapters (Sypher, Coinbase) hardcode theirs. Remove the two `TODO(rate-type)` shims here once both deploys are live.
 - **Stacks stacking/lending adapters** — disabled 2026-09-22 at the owner's request: `stacks-dual-stacking`, `stacks-dual-stacking-boosted`, `zest-protocol`. `hermetica-hbtc` also reads Stacks but stays enabled (vault product, not stacking). Temporary; rename `index.ts.disabled` back to `index.ts` and run `pnpm build` to re-enable.
-- **acre-mezo** — disabled 2026-07-13: the vault's on-chain accounting is bricked; `totalAssets()` and `convertToAssets()` both revert with "DF: feed is unhealthy" (dormant project, price feed updater stopped, heartbeat lapsed). Re-enable when the reads work again; the adapter also carries an apr floor + `allowZeroApr` for the dormant period, remove those when Acre relaunches properly.
+- **acre-mezo** — disabled 2026-07-13: the vault's on-chain accounting is bricked; `totalAssets()` and `convertToAssets()` both revert with "DF: feed is unhealthy" (dormant project, price feed updater stopped, heartbeat lapsed). Re-enable when the reads work again; the adapter also carries an apr floor + `allowZeroRate` for the dormant period, remove those when Acre relaunches properly.
 - **zenrock-zenbtc** — disabled 2026-07-06: API reports `yieldAPY: 0` with the exchange rate frozen since ~2026-06-21. Re-enable when Zenrock resumes paying yield.
 - **botanix** — retired 2026-08-17 (permanent, never re-enable): Botanix Labs shut the network down — announced 2026-06-10, withdrawals closed 2026-07-09, last block 2026-07-31. Every RPC endpoint is dead. The `.disabled` file is kept only as an ERC-4626 reference; the folder can be deleted outright.
-- **yb-\*-yieldbearing apr = official 30d trading APY** — switched 2026-09-01 from all-time / inception PPS growth (`tradingApyAllTime`) to Yield Basis's official 30-day fundamental trading APY (`tradingApy` via `/v1/analytics/markets/trading-apy`). That is the unlabeled field on the official feed and matches the dashboard's **FT APY (30D)** column. TVL remains on-chain from `updated_balances()` / `pricePerShare()`. The floor-at-0 + `metadata.rawApr30d` + conditional `allowZeroApr` pattern is retained, so a negative 30d window stores 0 without hiding a frozen feed.
+- **yb-\*-yieldbearing rate = official 30d trading APY (`rateType: "apy"`)** — switched 2026-09-01 from all-time / inception PPS growth (`tradingApyAllTime`) to Yield Basis's official 30-day fundamental trading APY (`tradingApy` via `/v1/analytics/markets/trading-apy`). That is the unlabeled field on the official feed and matches the dashboard's **FT APY (30D)** column. TVL remains on-chain from `updated_balances()` / `pricePerShare()`. The floor-at-0 + `metadata.rawApy30d` + conditional `allowZeroRate` pattern is retained, so a negative 30d window stores 0 without hiding a frozen feed.
 
 ## When in doubt
 

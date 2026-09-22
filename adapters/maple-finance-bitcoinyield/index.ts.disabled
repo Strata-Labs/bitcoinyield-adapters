@@ -88,7 +88,8 @@ export default defineAdapter({
         symbol: "BTC",
         tvlBtc,
         ...(tvlUsd > 0 ? { tvlUsd } : {}),
-        apr: math.toPercent(weeklyApy),
+        rate: math.toPercent(weeklyApy),
+        rateType: "apy",
         metadata: {
           weeklyApy: math.toPercent(weeklyApy),
           monthlyApy: math.toPercent(monthlyApy),

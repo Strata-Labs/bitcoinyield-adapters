@@ -12,6 +12,7 @@ export type {
   FetchContext,
   MetricRow,
   Notifier,
+  RateType,
   RegressionAlert,
   SpikeAlert,
   StalenessAlert,

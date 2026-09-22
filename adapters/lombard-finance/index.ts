@@ -21,7 +21,7 @@
  *
  * During the strategy's deployment ramp the measured figure can be ~0 or
  * slightly negative (re-marks against near-zero accrual), so apr is
- * floored at 0 with the raw figure kept in metadata — allowZeroApr is only
+ * floored at 0 with the raw figure kept in metadata — allowZeroRate is only
  * set when the raw figure is negative, so a frozen rate feed reading
  * exactly 0 growth still fails loudly in normalize. The 7-day window is
  * recorded in metadata to observe whether it stabilizes enough to become
@@ -143,9 +143,10 @@ export default defineAdapter({
       {
         symbol: "LBTC",
         tvlBtc,
-        apr: Math.max(rawApy, 0),
+        rate: Math.max(rawApy, 0),
+        rateType: "apy",
         metadata: {
-          ...(rawApy < 0 && { allowZeroApr: true }),
+          ...(rawApy < 0 && { allowZeroRate: true }),
           rawApy,
           rateWindow: headline.window,
           windowDays: headline.growth.elapsedDays,
@@ -154,7 +155,7 @@ export default defineAdapter({
           apy30d: growth30d.hasBaseline ? growth30d.apy : null,
           linearApr7d: growth7d.hasBaseline ? growth7d.apr : null,
           linearApr30d: growth30d.hasBaseline ? growth30d.apr : null,
-          aprSource: `onchain-${headline.window}-rate-growth`,
+          rateSource: `onchain-${headline.window}-rate-growth`,
           targetApyPct: TARGET_APY_PCT,
           contractAddress: LBTC_ADDRESS,
           decimals: decimalsCall.result,

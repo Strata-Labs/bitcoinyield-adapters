@@ -114,11 +114,12 @@ export default defineAdapter({
       {
         symbol: "BTCY",
         tvlBtc,
-        apr,
+        rate: apr,
+        rateType: "apr",
         metadata: {
           // Only relevant when the fallback floors a negative NAV window.
-          allowZeroApr: true,
-          aprSource: useReported ? "binance-apr14d" : "nav-series-fallback",
+          allowZeroRate: true,
+          rateSource: useReported ? "binance-apr14d" : "nav-series-fallback",
           navApr14d: navApr,
           nav: navNow,
           nav14dAgo: navThen,

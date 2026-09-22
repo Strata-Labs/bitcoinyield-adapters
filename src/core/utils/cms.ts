@@ -7,8 +7,14 @@
  * Endpoint contract (main app, see INTEGRATION.md):
  *
  *   GET /api/manual-metrics/:slug     auth: x-adapter-key
- *   → 200 { slug, aprPercent, tvlUsd: number | null, updatedAt }
+ *   → 200 { slug, ratePercent, tvlUsd: number | null, updatedAt }
  *   → 404 when no CMS product matches the slug
+ *
+ * The CMS holds only the number. Whether it is an APR or an APY is the
+ * adapter's call, like every other adapter — set `rateType` in the adapter.
+ *
+ * Transitional: until the main app serves `ratePercent`, the legacy
+ * `aprPercent` is read instead.
  */
 
 import type { FetchContext } from "../types.js";
@@ -16,8 +22,8 @@ import * as http from "./http.js";
 import { requireNumber } from "./validators.js";
 
 export interface ManualMetrics {
-  /** APR as a percentage (4.35 = 4.35%). */
-  aprPercent: number;
+  /** Annualized yield as a percentage (4.35 = 4.35%). */
+  ratePercent: number;
   /** Reported TVL in USD, or null when the product doesn't disclose it. */
   tvlUsd: number | null;
   /** ISO timestamp of the last CMS edit. */
@@ -26,7 +32,7 @@ export interface ManualMetrics {
 
 /**
  * Callers must declare `requires: { secrets: ["API_URL", "ADAPTER_KEY"] }`.
- * Validation of the fetched values (positive APR, disclosed vs undisclosed
+ * Validation of the fetched values (positive rate, disclosed vs undisclosed
  * TVL) is left to the adapter — products differ on what's legitimate.
  */
 export async function getManualMetrics(
@@ -44,6 +50,7 @@ export async function getManualMetrics(
   }
 
   const data = await http.get<{
+    ratePercent?: unknown;
     aprPercent?: unknown;
     tvlUsd?: unknown;
     updatedAt?: unknown;
@@ -51,10 +58,12 @@ export async function getManualMetrics(
     headers: { "x-adapter-key": adapterKey },
   });
 
-  const aprPercent = requireNumber(
-    data.aprPercent,
-    `manual-metrics(${slug}).aprPercent`,
-  );
+  // TODO(rate-type): drop the aprPercent fallback once the main app serves
+  // ratePercent.
+  const ratePercent =
+    data.ratePercent !== undefined
+      ? requireNumber(data.ratePercent, `manual-metrics(${slug}).ratePercent`)
+      : requireNumber(data.aprPercent, `manual-metrics(${slug}).aprPercent`);
   const tvlUsd =
     data.tvlUsd === null || data.tvlUsd === undefined
       ? null
@@ -63,5 +72,5 @@ export async function getManualMetrics(
     throw new Error(`manual-metrics(${slug}).updatedAt missing from response`);
   }
 
-  return { aprPercent, tvlUsd, updatedAt: data.updatedAt };
+  return { ratePercent, tvlUsd, updatedAt: data.updatedAt };
 }

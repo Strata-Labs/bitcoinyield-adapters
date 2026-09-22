@@ -110,8 +110,8 @@ export class DiscordNotifier implements Notifier {
   }
 }
 
-function formatValue(field: "tvlBtc" | "apr", n: number): string {
-  if (field === "apr") return `${n.toFixed(2)}%`;
+function formatValue(field: "tvlBtc" | "rate", n: number): string {
+  if (field === "rate") return `${n.toFixed(2)}%`;
   return formatNum(n);
 }
 

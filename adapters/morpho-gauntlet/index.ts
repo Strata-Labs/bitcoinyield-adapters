@@ -4,7 +4,7 @@
  * For a lending vault, realized 30d share-price growth and the forward Net
  * APY diverge (idle liquidity + shifting utilization), and the forward rate
  * is what depositors act on. So: on-chain `totalAssets()` for TVL, Morpho
- * GraphQL `netApy` for the headline APR (matches Morpho's UI), and the
+ * GraphQL `netApy` for the headline rate (an APY, matching Morpho's UI), and the
  * realized delta kept in `metadata.apy30dRealized` for drift auditing.
  *
  * If we onboard 3+ MetaMorpho vaults, reconstruct Net APY on-chain via a
@@ -147,7 +147,7 @@ export default defineAdapter({
     const apiGrossApy = morphoData.vaultByAddress?.state?.apy;
     // requirePositive also rejects a present-but-zero APY — a paused vault or
     // API glitch must fail the run, not store 0%.
-    const apr = math.toPercent(
+    const apy = math.toPercent(
       requirePositive(apiNetApy ?? apiGrossApy, "morpho netApy/apy"),
     );
 
@@ -155,7 +155,8 @@ export default defineAdapter({
       {
         symbol: "WBTC",
         tvlBtc,
-        apr,
+        rate: apy,
+        rateType: "apy",
         metadata: {
           vaultAddress: VAULT,
           assetAddress,
@@ -173,7 +174,7 @@ export default defineAdapter({
           maxDepositBtc, // null = uncapped
           curator: "Gauntlet",
           yieldMechanism: "lending-vault",
-          aprSource: "morpho-api-net-apy",
+          rateSource: "morpho-api-net-apy",
         },
       },
     ];

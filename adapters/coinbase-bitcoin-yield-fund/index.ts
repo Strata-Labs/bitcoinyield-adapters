@@ -1,5 +1,5 @@
 /**
- * Coinbase BTC Yield Fund — institutional product, TVL not disclosed. APR is
+ * Coinbase BTC Yield Fund — institutional product, TVL not disclosed. Rate is
  * maintained in the main app's CMS from monthly reports: edit there, no deploy.
  */
 
@@ -26,7 +26,7 @@ export default defineAdapter({
 
   async fetch(ctx) {
     const manual = await cms.getManualMetrics(ctx, SLUG);
-    const apr = requirePositive(manual.aprPercent, "cms.aprPercent");
+    const rate = requirePositive(manual.ratePercent, "cms.ratePercent");
 
     // Undisclosed TVL (null from the CMS): pin to the framework's lower bound
     // so the row survives the boundary check; metadata.tvlDisclosed flags it.
@@ -43,7 +43,10 @@ export default defineAdapter({
         symbol: "BTC",
         tvlBtc,
         tvlUsd: manual.tvlUsd ?? 0,
-        apr,
+        rate,
+        // Label is the adapter's call, not the CMS's. Flip this if the fund
+        // starts quoting a compounded (APY) figure.
+        rateType: "apr",
         metadata: {
           tvlDisclosed,
           source: "cms",
