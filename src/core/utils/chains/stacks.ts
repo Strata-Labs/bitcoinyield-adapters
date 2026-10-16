@@ -6,9 +6,15 @@
  * sBTC-related protocols).
  */
 
-import { fetchCallReadOnlyFunction, cvToValue } from "@stacks/transactions";
+import {
+  ClarityType,
+  cvToHex,
+  cvToValue,
+  fetchCallReadOnlyFunction,
+  hexToCV,
+} from "@stacks/transactions";
 import { STACKS_MAINNET } from "@stacks/network";
-import { get } from "../http.js";
+import { get, post } from "../http.js";
 
 const HIRO_API = "https://api.hiro.so";
 
@@ -87,6 +93,11 @@ export async function callReadOnly(input: {
   args?: any[];
   /** The address that "sends" the call. Defaults to the contract's deployer. */
   senderAddress?: string;
+  /**
+   * Index block hash to evaluate the call at (see `getBlock`). Omit for the
+   * chain tip. Pinning every read of a run to one block keeps them atomic.
+   */
+  tip?: string;
 }): Promise<unknown> {
   const [contractAddress, contractName] = input.contract.split(".") as [
     string,
@@ -94,6 +105,33 @@ export async function callReadOnly(input: {
   ];
   if (!contractAddress || !contractName) {
     throw new Error(`Invalid contract identifier: ${input.contract}`);
+  }
+
+  if (input.tip) {
+    // @stacks/transactions can't pass `tip`, so call the node endpoint directly.
+    const tip = input.tip.replace(/^0x/, "");
+    const res = await post<{ okay: boolean; result?: string; cause?: string }>(
+      `${getHiroBase()}/v2/contracts/call-read/${contractAddress}/${contractName}/` +
+        `${encodeURIComponent(input.functionName)}?tip=${tip}`,
+      {
+        sender: input.senderAddress ?? contractAddress,
+        arguments: (input.args ?? []).map((arg) => cvToHex(arg)),
+      },
+    );
+    if (!res.okay || !res.result) {
+      throw new Error(
+        `Read-only ${input.contract}.${input.functionName} at tip ${tip} failed: ` +
+          `${res.cause ?? "no result"}`,
+      );
+    }
+    const cv = hexToCV(res.result);
+    // cvToValue unwraps (err x) to x, which would pass an error code off as data.
+    if (cv.type === ClarityType.ResponseErr) {
+      throw new Error(
+        `Read-only ${input.contract}.${input.functionName} at tip ${tip} returned err`,
+      );
+    }
+    return cvToValue(cv);
   }
 
   const result = await fetchCallReadOnlyFunction({
@@ -111,6 +149,79 @@ export async function callReadOnly(input: {
   });
 
   return cvToValue(result);
+}
+
+export interface StacksBlock {
+  height: number;
+  /** Unix seconds. */
+  time: number;
+  /** Pass as `tip` to `callReadOnly` to read state as of this block. */
+  indexBlockHash: string;
+}
+
+export async function getBlock(
+  height: number | "latest",
+): Promise<StacksBlock> {
+  const raw = await get<{
+    height?: number;
+    block_time?: number;
+    index_block_hash?: string;
+  }>(`${getHiroBase()}/extended/v2/blocks/${height}`);
+  if (
+    !Number.isSafeInteger(raw.height) ||
+    !Number.isSafeInteger(raw.block_time) ||
+    typeof raw.index_block_hash !== "string"
+  ) {
+    throw new Error(`Hiro returned a malformed Stacks block for ${height}`);
+  }
+  return {
+    height: raw.height!,
+    time: raw.block_time!,
+    indexBlockHash: raw.index_block_hash,
+  };
+}
+
+/**
+ * The last Stacks block at or before `targetTime` (unix seconds) — the
+ * baseline for a trailing-window read. Interpolation steps alternate with
+ * bisection: block times are irregular (fast blocks inside ~10min tenures),
+ * so interpolation alone can stall.
+ */
+export async function findBlockAtTime(
+  targetTime: number,
+  latest?: StacksBlock,
+): Promise<StacksBlock> {
+  let high = latest ?? (await getBlock("latest"));
+  if (high.time <= targetTime) return high;
+
+  let span = 500_000;
+  let low = await getBlock(Math.max(1, high.height - span));
+  while (low.time > targetTime) {
+    if (low.height === 1) {
+      throw new Error(`No Stacks block at or before ${targetTime}`);
+    }
+    high = low;
+    span *= 2;
+    low = await getBlock(Math.max(1, high.height - span));
+  }
+
+  for (let i = 0; high.height - low.height > 1; i++) {
+    if (i >= 64) throw new Error("Stacks block search did not converge");
+    const interpolated =
+      low.height +
+      Math.round(
+        ((targetTime - low.time) * (high.height - low.height)) /
+          Math.max(1, high.time - low.time),
+      );
+    const guess =
+      i % 2 === 0 ? interpolated : Math.floor((low.height + high.height) / 2);
+    const mid = await getBlock(
+      Math.min(high.height - 1, Math.max(low.height + 1, guess)),
+    );
+    if (mid.time <= targetTime) low = mid;
+    else high = mid;
+  }
+  return low;
 }
 
 /**
