@@ -3,7 +3,7 @@ import { afterEach, test } from "node:test";
 
 import { Cl, cvToHex, type ClarityValue } from "@stacks/transactions";
 
-import adapter from "../adapters/stacking-dao-stbtc/index.js";
+import adapter from "../adapters/stackingdao-stbtc/index.js";
 import * as stacks from "../src/core/utils/chains/stacks.js";
 
 const realFetch = globalThis.fetch;

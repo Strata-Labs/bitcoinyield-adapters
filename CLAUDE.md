@@ -69,7 +69,7 @@ Reach for these before writing anything custom:
 - `scraper.{scrape,openPage,matchNumber}` — Browserbase wrapper for JS-rendered pages. **Last resort only** — always prefer a contract read or protocol API; scrape only when neither exists (currently no adapter scrapes: mezo-earn moved to Mezo's API, merlin-btc to on-chain reads).
 - `chains.ethereum` — viem with fallback transport across 4 public RPCs, multicall, shared `erc20Abi` and `erc4626VaultAbi`.
 - `chains.evm` / `getEvmClient(config)` — env-first client factory for non-mainnet EVM chains (Botanix, Ink). Set `BITCOINYIELD_RPC_<CHAIN>` in production.
-- `chains.stacks` — Hiro REST + `@stacks/transactions` for read-only contract calls. `callReadOnly({ tip })` reads state at a past block, and `findBlockAtTime` finds the baseline block for a trailing window (see `adapters/stacking-dao-stbtc`).
+- `chains.stacks` — Hiro REST + `@stacks/transactions` for read-only contract calls. `callReadOnly({ tip })` reads state at a past block, and `findBlockAtTime` finds the baseline block for a trailing window (see `adapters/stackingdao-stbtc`).
 - `cms.getManualMetrics(ctx, slug)` — for products with no API or on-chain source (Sypher, Coinbase fund): reads marketer-maintained APR/TVL from the main app's CMS (`GET /api/manual-metrics/:slug`). Adapter must declare `requires.secrets: ["API_URL", "ADAPTER_KEY"]`. **Never hardcode reported figures in an adapter** — they go stale and silently overwrite CMS edits.
 - `requirePositive(value, name)` — **throws loudly if zero/negative/NaN**. Use this aggressively. Silent zeros are the bug we built this framework to prevent.
 
