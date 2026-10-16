@@ -36,7 +36,7 @@ function uint(value: unknown, name: string): number {
 }
 
 export default defineAdapter({
-  slug: "stacking-dao-stbtc",
+  slug: "stackingdao-stbtc",
   name: "Stacking DAO stBTC",
   url: "https://app.stackingdao.com",
   category: "yield-bearing",
