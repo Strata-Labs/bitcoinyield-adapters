@@ -1,72 +1,22 @@
 /**
- * Helpers for fetching Zest's APR components.
- *
- * Zest's total supply yield is the sum of:
- *   1. supplyApy from the v0-rates contract (Zest's own lending APY)
- *   2. sBTC stacking APR from DegenLab's dual-stacking endpoint
- *      (the sBTC backing earns Stacks-cycle yield on top of Zest's lending yield)
- *
- * For new depositors we use the next-cycle APR rather than the current cycle —
- * post-halving the current-cycle number is stale.
+ * Zest's sBTC supply APY from the v0-rates contract.
  */
 
-import {
-  http,
-  math,
-  parseNumber,
-  requirePositive,
-  stacks,
-} from "@bitcoinyield/adapters";
+import { math, requirePositive, stacks } from "@bitcoinyield/adapters";
 import { DEPLOYER } from "./constants.js";
 
-const STACKING_APR_URL =
-  "https://dual-stacking-v3-server.degenlab.io/dual-stacking-server/last-cycle-aprs";
-
-interface StackingResponse {
-  next_cycle_max_defi_apr?: string;
-  max_defi_apr?: string;
-  // ... other fields ignored
-}
-
-/**
- * Fetches Zest's lending supply APY from the v0-rates contract.
- * Returns 0 if the contract is unreachable (the on-chain rates contract has
- * occasionally returned errors that aren't worth failing the whole adapter for).
- */
 export async function getSupplyApy(): Promise<number> {
-  try {
-    const result = await stacks.callReadOnly({
-      contract: `${DEPLOYER}.v0-rates`,
-      functionName: "get-rates-sbtc",
-    });
-    // The contract returns { supply-apy: uint, borrow-apy: uint } where uints
-    // are scaled by 10000 (e.g. 350 means 3.50%).
-    const supply = extractField(result, "supply-apy");
-    if (supply === undefined) {
-      console.warn(
-        "[zest-protocol] v0-rates response had no supply-apy field, supplyApy=0",
-      );
-      return 0;
-    }
-    return math.div(parseNumber(supply, 0), 100);
-  } catch (err) {
-    console.warn(`[zest-protocol] v0-rates read failed, supplyApy=0: ${err}`);
-    return 0;
-  }
-}
-
-/**
- * Fetches the next-cycle sBTC dual-stacking APR from DegenLab.
- * Forward-looking value — what new depositors will earn on the next cycle.
- *
- * Deliberately `next_cycle_max_defi_apr`, NOT the endpoint's `stacking_apr`:
- * sBTC deposited into a DeFi venue like Zest earns the DeFi-tier
- * dual-stacking rate, not the plain stacking rate. Confirmed 2026-07-06.
- */
-export async function getStackingApr(): Promise<number> {
-  const data = await http.get<StackingResponse>(STACKING_APR_URL);
-  const value = data.next_cycle_max_defi_apr ?? data.max_defi_apr;
-  return requirePositive(value, "degenlab next_cycle_max_defi_apr");
+  const result = await stacks.callReadOnly({
+    contract: `${DEPLOYER}.v0-rates`,
+    functionName: "get-rates-sbtc",
+  });
+  // The contract returns { supply-apy: uint, borrow-apy: uint } where uints
+  // are scaled by 10000 (e.g. 350 means 3.50%).
+  const supply = requirePositive(
+    extractField(result, "supply-apy"),
+    "v0-rates supply-apy",
+  );
+  return math.div(supply, 100);
 }
 
 /**

@@ -1,29 +1,24 @@
 /**
- * Helpers for reading sBTC balances out of Zest's vault contracts.
+ * Reads total sBTC supplied to Zest's V2 sBTC vault.
  */
 
-import { stacks, math } from "@bitcoinyield/adapters";
-import { SBTC_TOKEN_ID, VAULT_ADDRESSES } from "./constants.js";
+import { math, requirePositive, stacks } from "@bitcoinyield/adapters";
+import { SBTC_DECIMALS, SBTC_VAULT } from "./constants.js";
 
 /**
- * Returns the total sBTC held across all Zest vaults, in BTC units.
+ * Total assets (lent out + idle) in BTC, which is the "Total Supplied" figure
+ * on Zest's sBTC page. The vault's sBTC balance only holds the idle part.
  */
 export async function getTotalSbtcBtc(): Promise<number> {
-  const balances = await Promise.all(
-    VAULT_ADDRESSES.map((address) =>
-      stacks.getFungibleTokenBalance({ address, tokenId: SBTC_TOKEN_ID }),
-    ),
-  );
-  // A zero balance is either an emptied vault or a renamed asset identifier
-  // silently matching nothing — surface it so a halved TVL doesn't pass
-  // unnoticed (the total still counts the other vaults).
-  balances.forEach((balance, i) => {
-    if (balance === 0) {
-      console.warn(
-        `[zest-protocol] vault ${VAULT_ADDRESSES[i]} holds 0 sBTC — emptied, or token id changed?`,
-      );
-    }
+  const result = await stacks.callReadOnly({
+    contract: SBTC_VAULT,
+    functionName: "get-total-assets",
   });
-  const totalSats = math.add(...balances);
-  return math.fromUnits(totalSats, 8);
+  // (ok uint) decodes to { type: "uint", value: "<sats>" }.
+  const raw =
+    typeof result === "object" && result !== null && "value" in result
+      ? (result as { value: unknown }).value
+      : result;
+  const sats = requirePositive(String(raw), "v0-vault-sbtc get-total-assets");
+  return math.fromUnits(sats, SBTC_DECIMALS);
 }
