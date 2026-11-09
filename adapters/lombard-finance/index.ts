@@ -12,14 +12,12 @@ import {
   math,
   readShareGrowth,
   requirePositive,
-  BLOCKS_PER_30D,
 } from "@bitcoinyield/adapters";
 
 import { parseTransparencyReport, TRANSPARENCY_REPORT_URL } from "./report.js";
 
 const LBTC_ADDRESS = "0x8236a87084f8B84306f72007F36F2618A5634494" as const;
 const RATE_DECIMALS = 18;
-const BLOCKS_PER_7D_ETHEREUM = 50_400n;
 // Lombard's published target at full strategy deployment. Informational
 // metadata only — never the headline apr.
 const TARGET_APY_PCT = 2.5;
@@ -68,7 +66,7 @@ export default defineAdapter({
         address: LBTC_ADDRESS,
         abi: rateAbi,
         functionName: "getRate",
-        blocksBack: BLOCKS_PER_7D_ETHEREUM,
+        windowDays: 7,
         decimals: RATE_DECIMALS,
       }),
       readShareGrowth({
@@ -76,7 +74,7 @@ export default defineAdapter({
         address: LBTC_ADDRESS,
         abi: rateAbi,
         functionName: "getRate",
-        blocksBack: BLOCKS_PER_30D.ethereum,
+        windowDays: 30,
         decimals: RATE_DECIMALS,
       }),
       http.get<unknown>(TRANSPARENCY_REPORT_URL),

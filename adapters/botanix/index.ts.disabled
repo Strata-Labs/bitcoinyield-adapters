@@ -18,7 +18,6 @@ import {
   math,
   requirePositive,
   readShareGrowth,
-  BLOCKS_PER_30D,
   type EvmChainConfig,
 } from "@bitcoinyield/adapters";
 
@@ -93,7 +92,7 @@ export default defineAdapter({
         abi: ethereum.erc4626VaultAbi,
         functionName: "convertToAssets",
         args: [ONE_SHARE_18_DECIMALS],
-        blocksBack: BLOCKS_PER_30D.botanix,
+        windowDays: 30,
         decimals: ASSET_DECIMALS,
       }),
     ]);

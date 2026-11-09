@@ -16,7 +16,6 @@ import {
   math,
   requirePositive,
   readShareGrowth,
-  BLOCKS_PER_30D,
 } from "@bitcoinyield/adapters";
 
 const VAULT = "0x443df5eEE3196e9b2Dd77CaBd3eA76C3dee8f9b2";
@@ -80,7 +79,7 @@ export default defineAdapter({
         abi: ethereum.erc4626VaultAbi,
         functionName: "convertToAssets",
         args: [ONE_SHARE_18_DECIMALS],
-        blocksBack: BLOCKS_PER_30D.ethereum,
+        windowDays: 30,
         decimals: ASSET_DECIMALS,
       }),
       // Comparison only — an API outage must not take the row down.
