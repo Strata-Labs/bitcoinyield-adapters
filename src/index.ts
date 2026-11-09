@@ -34,7 +34,6 @@ export {
 } from "./core/utils/chains/evm.js";
 export {
   readShareGrowth,
-  BLOCKS_PER_30D,
   type ShareGrowthOptions,
   type ShareGrowthResult,
 } from "./core/utils/yield.js";

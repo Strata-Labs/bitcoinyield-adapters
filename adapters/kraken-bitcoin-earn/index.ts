@@ -21,10 +21,6 @@ import {
 const BORING_VAULT = "0x7Dee0120739b7ec048B469939EFB178ADbbB19B2";
 const ACCOUNTANT = "0x4Bb6C416a00561ad6657110b76552c42d55Ff1d6";
 
-// Ink produces ~1 block/sec, so 2_592_000 blocks ≈ 30 days. readShareGrowth
-// annualizes by actual block timestamps, so drift only widens the window.
-const INK_BLOCKS_30D = 2_592_000n;
-
 const INK: EvmChainConfig = {
   id: 57073,
   name: "Ink",
@@ -101,7 +97,7 @@ export default defineAdapter({
       address: ACCOUNTANT,
       abi: accountantAbi,
       functionName: "getRate",
-      blocksBack: INK_BLOCKS_30D,
+      windowDays: 30,
       decimals: Number(rateDecimals),
     });
 

@@ -32,8 +32,6 @@ const ASSET_ADDRESS = "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf";
 // hBTC and cbBTC are both 8 decimals.
 const ONE_SHARE = 100_000_000n;
 const ASSET_DECIMALS = 8;
-// Base produces a block every 2s, so 1_296_000 blocks ≈ 30 days.
-const BASE_BLOCKS_30D = 1_296_000n;
 
 const BASE: EvmChainConfig = {
   id: CHAIN_ID,
@@ -116,7 +114,7 @@ export default defineAdapter({
         abi: ethereum.erc4626VaultAbi,
         functionName: "convertToAssets",
         args: [ONE_SHARE],
-        blocksBack: BASE_BLOCKS_30D,
+        windowDays: 30,
         decimals: ASSET_DECIMALS,
       }),
     ]);

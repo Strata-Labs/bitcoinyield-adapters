@@ -1,6 +1,6 @@
 /**
- * Reads a share-price view function at the latest block AND at
- * `latest - blocksBack`, then annualizes the delta into APR/APY.
+ * Reads a share-price view function at the latest block AND at the block
+ * `windowDays` ago, then annualizes the delta into APR/APY.
  *
  * The two-block read avoids the per-cycle noise of comparing to last cycle:
  * a 1-hour window can imply absurd annualized numbers from a single fee
@@ -13,6 +13,9 @@
 import type { Abi, Address, PublicClient } from "viem";
 
 const SECONDS_PER_DAY = 86_400;
+// A baseline this close to the target time is good enough: elapsed days
+// come from the two block timestamps, not the target.
+const BASELINE_TOLERANCE_SECONDS = 600n;
 
 export interface ShareGrowthOptions {
   client: PublicClient;
@@ -20,8 +23,12 @@ export interface ShareGrowthOptions {
   abi: Abi;
   functionName: string;
   args?: readonly unknown[];
-  /** ~216_000n for Ethereum (~30d), ~518_400n for Botanix. Approximate; exact elapsed days come from block timestamps. */
-  blocksBack: bigint;
+  /**
+   * Trailing window. The baseline block is found by timestamp, not a block
+   * count: Base went from 2s to 200ms blocks on 2026-11-05, which shrank a
+   * fixed 30d block count to 3 days and annualized it into a 110% APY.
+   */
+  windowDays: number;
   /** Divisor for the raw uint256 — typically 18 for ERC-4626 share prices. */
   decimals: number;
 }
@@ -46,7 +53,7 @@ export interface ShareGrowthResult {
 export async function readShareGrowth(
   opts: ShareGrowthOptions,
 ): Promise<ShareGrowthResult> {
-  const { client, address, abi, functionName, args, blocksBack, decimals } =
+  const { client, address, abi, functionName, args, windowDays, decimals } =
     opts;
   const divisor = 10 ** decimals;
 
@@ -60,18 +67,20 @@ export async function readShareGrowth(
   })) as bigint;
   const sharePriceNow = Number(rawNow) / divisor;
 
-  const historicalBlockNumber = latestBlock.number - blocksBack;
+  const historicalBlock = await findBlockAtTime(
+    client,
+    latestBlock.timestamp - BigInt(Math.round(windowDays * SECONDS_PER_DAY)),
+    latestBlock,
+  );
+  const historicalBlockNumber = historicalBlock.number;
   try {
-    const [rawThen, historicalBlock] = await Promise.all([
-      client.readContract({
-        address,
-        abi,
-        functionName,
-        args,
-        blockNumber: historicalBlockNumber,
-      }) as Promise<bigint>,
-      client.getBlock({ blockNumber: historicalBlockNumber }),
-    ]);
+    const rawThen = (await client.readContract({
+      address,
+      abi,
+      functionName,
+      args,
+      blockNumber: historicalBlockNumber,
+    })) as bigint;
 
     const sharePriceThen = Number(rawThen) / divisor;
     if (sharePriceThen <= 0) {
@@ -131,7 +140,77 @@ export async function readShareGrowth(
   }
 }
 
-export const BLOCKS_PER_30D = {
-  ethereum: 216_000n,
-  botanix: 518_400n,
-} as const;
+interface BlockRef {
+  number: bigint;
+  /** Unix seconds. */
+  timestamp: bigint;
+}
+
+async function readBlock(
+  client: Pick<PublicClient, "getBlock">,
+  blockNumber: bigint,
+): Promise<BlockRef> {
+  const block = await client.getBlock({ blockNumber });
+  return { number: block.number, timestamp: block.timestamp };
+}
+
+/**
+ * A block within BASELINE_TOLERANCE_SECONDS of `targetTime`, or failing
+ * that the last block at or before it. Seeds from the recent block rate,
+ * widens until the target is bracketed, then alternates interpolation with
+ * bisection: interpolation alone stalls when block time changed inside the
+ * bracket (Base's 2s -> 200ms switch).
+ */
+export async function findBlockAtTime(
+  client: Pick<PublicClient, "getBlock">,
+  targetTime: bigint,
+  latest: BlockRef,
+): Promise<BlockRef> {
+  const near = (b: BlockRef) => {
+    const diff = b.timestamp - targetTime;
+    return (diff < 0n ? -diff : diff) <= BASELINE_TOLERANCE_SECONDS;
+  };
+  if (latest.timestamp <= targetTime) return latest;
+
+  const probe = await readBlock(
+    client,
+    latest.number > 1000n ? latest.number - 1000n : 0n,
+  );
+  const probeSeconds = latest.timestamp - probe.timestamp;
+  let span =
+    probeSeconds > 0n
+      ? ((latest.timestamp - targetTime) * (latest.number - probe.number)) /
+        probeSeconds
+      : 1000n;
+  let high = latest;
+  let low = await readBlock(
+    client,
+    latest.number > span ? latest.number - span : 0n,
+  );
+  while (low.timestamp > targetTime) {
+    if (low.number === 0n) {
+      throw new Error(`No block at or before ${targetTime}`);
+    }
+    high = low;
+    span *= 2n;
+    low = await readBlock(client, high.number > span ? high.number - span : 0n);
+  }
+  if (near(low)) return low;
+
+  for (let i = 0; high.number - low.number > 1n; i++) {
+    if (i >= 64) throw new Error("Block search did not converge");
+    const timeSpan = high.timestamp - low.timestamp;
+    const interpolated =
+      low.number +
+      ((targetTime - low.timestamp) * (high.number - low.number)) /
+        (timeSpan > 0n ? timeSpan : 1n);
+    let guess = i % 2 === 0 ? interpolated : (low.number + high.number) / 2n;
+    if (guess <= low.number) guess = low.number + 1n;
+    if (guess >= high.number) guess = high.number - 1n;
+    const mid = await readBlock(client, guess);
+    if (near(mid)) return mid;
+    if (mid.timestamp <= targetTime) low = mid;
+    else high = mid;
+  }
+  return low;
+}

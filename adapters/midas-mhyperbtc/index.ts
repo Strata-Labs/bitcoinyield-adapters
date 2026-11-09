@@ -18,7 +18,6 @@ import {
   math,
   readShareGrowth,
   requirePositive,
-  BLOCKS_PER_30D,
 } from "@bitcoinyield/adapters";
 import type { Address } from "viem";
 
@@ -36,7 +35,6 @@ const MONAD_TOKEN = "0xF7Cf282eC810fDed974F99c0163E792f432892BC";
 
 // getDataInBase18() is the official Midas NAV, always scaled to 18 decimals.
 const NAV_DECIMALS = 18;
-const BLOCKS_PER_7D_ETHEREUM = 50_400n;
 
 const dataFeedAbi = [
   {
@@ -87,7 +85,7 @@ export default defineAdapter({
         address: dataFeed,
         abi: dataFeedAbi,
         functionName: "getDataInBase18",
-        blocksBack: BLOCKS_PER_7D_ETHEREUM,
+        windowDays: 7,
         decimals: NAV_DECIMALS,
       }),
       readShareGrowth({
@@ -95,7 +93,7 @@ export default defineAdapter({
         address: dataFeed,
         abi: dataFeedAbi,
         functionName: "getDataInBase18",
-        blocksBack: BLOCKS_PER_30D.ethereum,
+        windowDays: 30,
         decimals: NAV_DECIMALS,
       }),
     ]);

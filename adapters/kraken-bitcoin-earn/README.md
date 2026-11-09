@@ -14,7 +14,7 @@ custodial BTC yield product, implemented as a BoringVault on Ink L2
   `readShareGrowth`), the site-wide APY standard. The rate is net of fees
   and compounds into the share price, so a losing window is published
   negative. Kraken's public Dune dashboard shows a 7D window instead.
-  Requires an archive read at ~2,592,000 blocks back (Ink ≈ 1 block/sec).
+  Requires an archive read at the block 30 days back.
 - **BTC price**: framework's `prices.getBtc()` (CoinGecko, cached).
 
 ## Required environment

@@ -15,8 +15,8 @@ Merkl reward campaign.
   for the live incentive campaign rate. Read from Merkl directly (not from
   Syntetika's `/merkl/apr` proxy) so the incentive figure is independent of
   Syntetika's self-reporting — their proxy just mirrors `rewards_apy`.
-- **Base RPC** — `convertToAssets(1e8)` on the vault now and ~1,296,000
-  blocks (~30 days) back, via `readShareGrowth`. Set
+- **Base RPC** — `convertToAssets(1e8)` on the vault now and at the block
+  30 days back (found by timestamp), via `readShareGrowth`. Set
   `BITCOINYIELD_RPC_BASE` to an archive endpoint in production.
 
 ## APY decomposition
