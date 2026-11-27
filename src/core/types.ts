@@ -15,6 +15,8 @@ export interface AdapterAuditInfo {
 
 export interface FetchContext {
   env: Record<string, string | undefined>;
+  /** The row timestamp, pinned to the event across scheduled retries. */
+  timestamp?: Date;
 }
 
 /**

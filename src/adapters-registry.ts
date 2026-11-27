@@ -24,6 +24,7 @@ import starknet from '../adapters/starknet/index.js'
 import syntetikaHbtc from '../adapters/syntetika-hbtc/index.js'
 import sypherCapitalBitcoinYieldFund from '../adapters/sypher-capital-bitcoin-yield-fund/index.js'
 import twoPrimeAxiom from '../adapters/two-prime-axiom/index.js'
+import wintermuteConfidentialWbtc from '../adapters/wintermute-confidential-wbtc/index.js'
 import ybCbbtcToken from '../adapters/yb-cbbtc-token/index.js'
 import ybCbbtcYieldbearing from '../adapters/yb-cbbtc-yieldbearing/index.js'
 import ybTbtcToken from '../adapters/yb-tbtc-token/index.js'
@@ -53,6 +54,7 @@ export const adapters: Record<string, Adapter> = {
   "syntetika-hbtc": syntetikaHbtc,
   "sypher-capital-bitcoin-yield-fund": sypherCapitalBitcoinYieldFund,
   "two-prime-axiom": twoPrimeAxiom,
+  "wintermute-confidential-wbtc": wintermuteConfidentialWbtc,
   "yb-cbbtc-token": ybCbbtcToken,
   "yb-cbbtc-yieldbearing": ybCbbtcYieldbearing,
   "yb-tbtc-token": ybTbtcToken,

@@ -38,7 +38,7 @@ export async function runAdapter(
   const now = options.now ?? new Date();
 
   try {
-    const ctx = buildFetchContext(adapter);
+    const ctx = buildFetchContext(adapter, now);
     // Adapters that value TVL via prices.getBtc() read this instead of
     // fetching their own.
     if (options.btcPrice !== undefined) prices.primeBtc(options.btcPrice);
@@ -109,11 +109,11 @@ export async function runAdapter(
   }
 }
 
-function buildFetchContext(adapter: Adapter): FetchContext {
+function buildFetchContext(adapter: Adapter, timestamp: Date): FetchContext {
   const allowedSecrets = adapter.requires?.secrets ?? [];
   const env: Record<string, string | undefined> = {};
   for (const key of allowedSecrets) {
     env[key] = process.env[`BITCOINYIELD_${key}`];
   }
-  return { env };
+  return { env, timestamp };
 }
